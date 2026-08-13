@@ -48,3 +48,16 @@ def match_root_from_name(text: str):
         if text in name or name in text:
             return root
     return None
+
+
+def build_root_to_name() -> dict:
+    """
+    Returns {TICKER_ROOT: 'Display Name'} using the first company name found
+    for each root (title-cased). Used to build friendly search labels like
+    "AAPL US Equity — Apple" in the Streamlit dropdowns.
+    """
+    root_to_name = {}
+    for name, root in COMPANY_NAME_MAP.items():
+        if root not in root_to_name:
+            root_to_name[root] = name.title()
+    return root_to_name
