@@ -28,7 +28,10 @@ st.set_page_config(page_title="Ticker Metrics Terminal", page_icon="📊", layou
 # THEME - black background w/ radial gradient + grid, neon accents, glass cards
 # ---------------------------------------------------------------------------
 st.markdown("""
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@600;800&family=Rajdhani:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
+    html, body, [class*="css"] { font-family: 'Rajdhani', sans-serif; }
+
     .stApp {
         background-color: #000000;
         background-image:
@@ -39,32 +42,73 @@ st.markdown("""
     }
     section[data-testid="stSidebar"] { background-color: rgba(10, 10, 10, 0.85); }
 
-    /* Main title - highlighter yellow with a soft glow */
+    /* Custom scrollbar */
+    ::-webkit-scrollbar { width: 10px; height: 10px; }
+    ::-webkit-scrollbar-track { background: #000000; }
+    ::-webkit-scrollbar-thumb {
+        background: linear-gradient(180deg, #00f7ff, #ff00e6);
+        border-radius: 10px;
+    }
+    ::-webkit-scrollbar-thumb:hover { background: #f5ff00; }
+
+    /* Main title - highlighter yellow, Orbitron, animated glow */
     h1 {
+        font-family: 'Orbitron', sans-serif !important;
+        font-weight: 800 !important;
+        letter-spacing: 1px;
         color: #f5ff00 !important;
-        text-shadow: 0 0 10px rgba(245, 255, 0, 0.45);
+        animation: titleGlow 3.5s ease-in-out infinite;
+    }
+    @keyframes titleGlow {
+        0%, 100% { text-shadow: 0 0 10px rgba(245, 255, 0, 0.45), 0 0 22px rgba(245, 255, 0, 0.15); }
+        50% { text-shadow: 0 0 16px rgba(245, 255, 0, 0.7), 0 0 34px rgba(245, 255, 0, 0.3); }
     }
 
-    /* Section headers (e.g. "Search by ticker symbol...") - neon cyan */
+    /* Section headers - neon cyan, Orbitron */
     h2, h3 {
+        font-family: 'Orbitron', sans-serif !important;
+        font-weight: 600 !important;
+        letter-spacing: 0.5px;
         color: #00f7ff !important;
         text-shadow: 0 0 6px rgba(0, 247, 255, 0.35);
     }
 
-    /* Caption under the title ("1591 tickers loaded...") - neon green */
+    /* Caption under the title - neon green, uppercase, tracked out */
     [data-testid="stCaptionContainer"], .stCaption {
         color: #39ff14 !important;
+        letter-spacing: 1.5px;
+        text-transform: uppercase;
+        font-size: 0.78rem !important;
+        font-weight: 600;
     }
 
-    /* Tabs */
-    .stTabs [data-baseweb="tab"] {
-        font-weight: 700;
-        color: #00f7ff;
+    /* Bold inline markdown labels (POPULAR TICKERS, etc.) */
+    .stMarkdown strong {
+        color: #ff00e6;
+        letter-spacing: 1.5px;
+        font-size: 0.82rem;
     }
+
+    /* Tabs - glowing animated underline on active tab */
+    .stTabs [data-baseweb="tab-list"] { gap: 6px; border-bottom: 1px solid rgba(0,247,255,0.15); }
+    .stTabs [data-baseweb="tab"] {
+        font-family: 'Orbitron', sans-serif;
+        font-weight: 600;
+        font-size: 0.85rem;
+        color: #4d5568;
+        padding: 10px 4px;
+        transition: color 0.2s ease;
+    }
+    .stTabs [data-baseweb="tab"]:hover { color: #00f7ff; }
     .stTabs [aria-selected="true"] {
         color: #f5ff00 !important;
+        text-shadow: 0 0 8px rgba(245, 255, 0, 0.5);
     }
-    .stTabs [data-baseweb="tab-highlight"] { background-color: #f5ff00 !important; }
+    .stTabs [data-baseweb="tab-highlight"] {
+        background-color: #f5ff00 !important;
+        box-shadow: 0 0 10px 1px rgba(245, 255, 0, 0.7);
+        height: 3px !important;
+    }
 
     /* Metric cards - glassmorphism with layered depth shadows */
     div[data-testid="stMetric"] {
@@ -77,20 +121,30 @@ st.markdown("""
             0 6px 14px rgba(0, 0, 0, 0.65),
             0 0 14px rgba(255, 0, 230, 0.25),
             inset 0 1px 0 rgba(255, 255, 255, 0.06);
-        transition: transform 0.15s ease, box-shadow 0.15s ease;
+        transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
     }
     div[data-testid="stMetric"]:hover {
-        transform: translateY(-2px);
+        transform: translateY(-3px);
+        border-color: rgba(0, 247, 255, 0.6);
         box-shadow:
-            0 10px 20px rgba(0, 0, 0, 0.7),
-            0 0 20px rgba(255, 0, 230, 0.4),
+            0 12px 24px rgba(0, 0, 0, 0.75),
+            0 0 22px rgba(0, 247, 255, 0.35),
             inset 0 1px 0 rgba(255, 255, 255, 0.08);
     }
-    div[data-testid="stMetricLabel"] { color: #ff00e6 !important; font-weight: 700; }
-    div[data-testid="stMetricValue"] { color: #f1f5f9 !important; }
+    div[data-testid="stMetricLabel"] {
+        color: #ff00e6 !important; font-weight: 700 !important;
+        letter-spacing: 0.5px; font-size: 0.78rem !important;
+        text-transform: uppercase;
+    }
+    div[data-testid="stMetricValue"] {
+        color: #f1f5f9 !important; font-family: 'Rajdhani', sans-serif !important;
+        font-weight: 700 !important;
+    }
 
     /* Popular ticker pill buttons - glassmorphism */
     .stButton button {
+        font-family: 'Orbitron', sans-serif !important;
+        font-size: 0.78rem !important;
         border-radius: 20px !important;
         border: 1px solid rgba(0, 247, 255, 0.5) !important;
         background-color: rgba(10, 10, 10, 0.5) !important;
@@ -103,15 +157,65 @@ st.markdown("""
     .stButton button:hover {
         border-color: #f5ff00 !important; color: #f5ff00 !important;
         box-shadow: 0 6px 14px rgba(0, 0, 0, 0.6), 0 0 16px rgba(245, 255, 0, 0.3);
-        transform: translateY(-1px);
+        transform: translateY(-2px) scale(1.02);
+    }
+    .stButton button:disabled {
+        border-color: rgba(100, 100, 100, 0.3) !important;
+        color: #4d5568 !important; box-shadow: none;
     }
 
-    /* Info/success boxes - glass style to match */
+    /* Info/success/error boxes - glass style to match */
     div[data-testid="stAlert"] {
         background-color: rgba(10, 10, 10, 0.55) !important;
         backdrop-filter: blur(10px);
         -webkit-backdrop-filter: blur(10px);
+        border-radius: 10px;
         box-shadow: 0 6px 14px rgba(0, 0, 0, 0.6);
+    }
+
+    /* "MATCH FOUND" success badge - subtle pulse */
+    div[data-testid="stAlert"][data-baseweb="notification"] p { font-weight: 700; letter-spacing: 0.5px; }
+    div.stAlert:has(svg[title="Success"]) {
+        animation: matchPulse 1.8s ease-in-out infinite;
+        border: 1px solid rgba(57, 255, 20, 0.5) !important;
+    }
+    @keyframes matchPulse {
+        0%, 100% { box-shadow: 0 6px 14px rgba(0,0,0,0.6), 0 0 6px rgba(57,255,20,0.25); }
+        50% { box-shadow: 0 6px 14px rgba(0,0,0,0.6), 0 0 16px rgba(57,255,20,0.5); }
+    }
+
+    /* Select boxes / multiselect - glass + neon border on focus */
+    div[data-baseweb="select"] > div {
+        background-color: rgba(10, 10, 10, 0.6) !important;
+        border-color: rgba(0, 247, 255, 0.35) !important;
+        border-radius: 10px !important;
+    }
+    div[data-baseweb="select"]:focus-within > div { border-color: #f5ff00 !important; }
+    span[data-baseweb="tag"] {
+        background-color: rgba(255, 0, 230, 0.18) !important;
+        border: 1px solid rgba(255, 0, 230, 0.5) !important;
+        border-radius: 14px !important;
+    }
+
+    /* Dividers - neon gradient line instead of plain gray */
+    hr {
+        border: none !important;
+        height: 1px !important;
+        background: linear-gradient(90deg, transparent, #00f7ff, #ff00e6, transparent) !important;
+        opacity: 0.5 !important;
+    }
+
+    /* Dataframes / tables - glass container with neon border */
+    div[data-testid="stDataFrame"] {
+        border: 1px solid rgba(0, 247, 255, 0.25);
+        border-radius: 10px;
+        overflow: hidden;
+        box-shadow: 0 6px 14px rgba(0, 0, 0, 0.5);
+    }
+
+    /* Header ticker banner text (st.header) */
+    div[data-testid="stHeading"] h2 {
+        text-shadow: 0 0 10px rgba(0, 247, 255, 0.5) !important;
     }
 </style>
 """, unsafe_allow_html=True)
