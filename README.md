@@ -137,3 +137,10 @@ The application reads from `Ticker_Data.xlsx` (sheet: `Ticker Metrics`), contain
 - Export comparison and risk-group tables to Excel/PDF
 
 ---
+
+## 👤 Author
+
+**Nihal**
+B.Tech IT Student
+
+---
