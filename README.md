@@ -2,6 +2,8 @@
 
 An interactive equity analytics tool that transforms a raw Excel dataset of **1,591 tickers** into a searchable, comparable, and risk-classified dashboard — built entirely in Python.
 
+**🔗 Live demo:** [tickerapp-8dfp7vjl25jakcswskkmsa.streamlit.app](https://tickerapp-8dfp7vjl25jakcswskkmsa.streamlit.app/)
+
 Look up any ticker by symbol or company name, compare multiple tickers side-by-side across any metric, and browse an automated risk classification system that scores every ticker and suggests a corresponding leverage figure.
 
 ---
@@ -53,14 +55,15 @@ Safer tickers (lower Risk Score) get a higher leverage ceiling; riskier tickers 
 
 ## 🛠️ Tech Stack
 
-| Layer | Technology |
-|---|---|
-| Language | Python 3.13 |
-| Data processing | pandas, openpyxl |
-| Web UI | Streamlit |
-| Charts | Plotly (interactive) |
-| Desktop UI (legacy) | Tkinter + Matplotlib |
-| Version control | Git & GitHub |
+| Layer               | Technology           |
+| ------------------- | --------------------- |
+| Language            | Python 3.13          |
+| Data processing     | pandas, openpyxl      |
+| Web UI              | Streamlit             |
+| Charts              | Plotly (interactive)  |
+| Desktop UI (legacy) | Tkinter + Matplotlib  |
+| Deployment          | Streamlit Community Cloud |
+| Version control     | Git & GitHub          |
 
 ---
 
@@ -89,7 +92,6 @@ TickerApp/
 - pip
 
 ### Installation
-
 ```bash
 git clone https://github.com/MODRIC1009/TickerApp.git
 cd TickerApp
@@ -97,15 +99,12 @@ pip install -r requirements.txt
 ```
 
 ### Run the web app (Streamlit)
-
 ```bash
 streamlit run app.py
 ```
-
 This opens the app automatically in your browser at `http://localhost:8501`.
 
 ### Run the desktop app (Tkinter)
-
 ```bash
 python main.py
 ```
@@ -116,16 +115,16 @@ python main.py
 
 The application reads from `Ticker_Data.xlsx` (sheet: `Ticker Metrics`), containing one row per ticker:
 
-| Column | Description |
-|---|---|
-| Ticker | Symbol and exchange, e.g. `NVDA US Equity` |
-| Volume | Trading volume (shares) |
-| Volume in USD | Trading volume in US Dollars |
-| Market Cap | Market capitalization (USD) |
-| Historical Volatility 30D / 60D / 90D | Annualized volatility over each window |
-| Beta | Systematic risk relative to the market |
+| Column                                | Description                                |
+| -------------------------------------- | ------------------------------------------- |
+| Ticker                                 | Symbol and exchange, e.g. `NVDA US Equity`  |
+| Volume                                 | Trading volume (shares)                     |
+| Volume in USD                          | Trading volume in US Dollars                |
+| Market Cap                             | Market capitalization (USD)                 |
+| Historical Volatility 30D / 60D / 90D  | Annualized volatility over each window      |
+| Beta                                   | Systematic risk relative to the market      |
 
-**1,591 unique tickers** across global equities and exchanges.
+**1,591 unique tickers** across global equities and exchanges. Included in the repo for demo purposes.
 
 ---
 
@@ -140,7 +139,4 @@ The application reads from `Ticker_Data.xlsx` (sheet: `Ticker Metrics`), contain
 
 ## 👤 Author
 
-**Nihal**
-B.Tech IT Student
-
----
+**Nihal Antony Lopez** · B.Tech IT Student
