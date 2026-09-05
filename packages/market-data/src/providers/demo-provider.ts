@@ -1,3 +1,5 @@
+import { GLOBAL_EXCHANGES } from "../exchange-catalog";
+
 import type {
   Exchange,
   Instrument,
@@ -10,45 +12,6 @@ import type {
   InstrumentSearchResult,
   MarketDataProvider,
 } from "../index";
-
-const exchanges: Exchange[] = [
-  {
-    id: "nasdaq",
-    name: "NASDAQ",
-    countryCode: "US",
-    region: "north-america",
-    currency: "USD",
-    timezone: "America/New_York",
-    regularSession: {
-  open: "09:30",
-  close: "16:00",
-},
-  },
-  {
-    id: "nyse",
-    name: "New York Stock Exchange",
-    countryCode: "US",
-    region: "north-america",
-    currency: "USD",
-    timezone: "America/New_York",
-    regularSession: {
-  open: "09:30",
-  close: "16:00",
-},
-  },
-  {
-    id: "nse",
-    name: "National Stock Exchange of India",
-    countryCode: "IN",
-    region: "asia-pacific",
-    currency: "INR",
-    timezone: "Asia/Kolkata",
-    regularSession: {
-  open: "09:15",
-  close: "15:30",
-},
-  },
-];
 
 const instruments: Instrument[] = [
   {
@@ -146,7 +109,8 @@ export class DemoMarketDataProvider implements MarketDataProvider {
       })
       .map((instrument) => ({
         instrument,
-        score: instrument.symbol.toLowerCase() === normalizedQuery ? 1 : 0.5,
+        score:
+          instrument.symbol.toLowerCase() === normalizedQuery ? 1 : 0.5,
       }))
       .sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
   }
@@ -212,7 +176,10 @@ export class DemoMarketDataProvider implements MarketDataProvider {
         high,
         low,
         close,
-        volume: Math.round(quote.volume * (0.7 + Math.abs(Math.sin(index)) * 0.6)),
+        volume: Math.round(
+          quote.volume *
+            (0.7 + Math.abs(Math.sin(index)) * 0.6),
+        ),
       });
 
       current.setUTCDate(current.getUTCDate() + 1);
@@ -223,6 +190,6 @@ export class DemoMarketDataProvider implements MarketDataProvider {
   }
 
   async listExchanges(): Promise<Exchange[]> {
-    return exchanges;
+    return GLOBAL_EXCHANGES;
   }
 }

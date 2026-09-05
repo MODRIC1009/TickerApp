@@ -1,7 +1,15 @@
 import type { Exchange } from "@tickerapp/shared";
 
+import { GLOBAL_EXCHANGES } from "./exchange-catalog";
+
 export class ExchangeRegistry {
   private readonly exchanges = new Map<string, Exchange>();
+
+  constructor(exchanges: Exchange[] = GLOBAL_EXCHANGES) {
+    for (const exchange of exchanges) {
+      this.register(exchange);
+    }
+  }
 
   register(exchange: Exchange): void {
     if (this.exchanges.has(exchange.id)) {

@@ -47,3 +47,12 @@ export type {
 export { TwelveDataProvider } from "./providers/twelve-data-provider";
 export type { TwelveDataProviderOptions } from "./providers/twelve-data-provider";
 export { ExchangeRegistry } from "./exchange-registry";
+export {
+  getMarketSession,
+} from "./market-session";
+
+export type {
+  MarketSession,
+  MarketSessionStatus,
+} from "./market-session";
+export { GLOBAL_EXCHANGES } from "./exchange-catalog";
