@@ -130,3 +130,21 @@ export type {
   MarketDataApiSuccess,
   MarketDataApiList,
 } from "./api-types";
+export {
+  resolveExchange,
+} from "./exchange-resolution";
+
+export type {
+  ExchangeResolution,
+} from "./exchange-resolution";
+export {
+  normalizeProviderInstrument,
+  mapAssetClass,
+} from "./instrument-normalizer";
+
+export type {
+  ProviderInstrumentInput,
+} from "./instrument-normalizer";
+export {
+  GLOBAL_INSTRUMENTS,
+} from "./instrument-catalog";

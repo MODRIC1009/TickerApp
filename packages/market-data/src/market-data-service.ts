@@ -66,6 +66,40 @@ getCachedInstrument(
   );
 }
 
+  findInstrumentsBySymbol(
+    symbol: string,
+  ): Instrument[] {
+    return this.instrumentRegistry.findBySymbol(
+      symbol,
+    );
+  }
+
+  findInstrumentsByCountry(
+    countryCode: string,
+  ): Instrument[] {
+    return this.instrumentRegistry.findByCountry(
+      countryCode,
+    );
+  }
+
+  findInstrumentsByExchange(
+    exchangeId: string,
+  ): Instrument[] {
+    return this.instrumentRegistry.findByExchange(
+      exchangeId,
+    );
+  }
+
+  findInstrumentsByCountryAndExchange(
+    countryCode: string,
+    exchangeId: string,
+  ): Instrument[] {
+    return this.instrumentRegistry.findByCountryAndExchange(
+      countryCode,
+      exchangeId,
+    );
+  }
+
 getInstrumentIdentity(
   instrument: Instrument,
 ): {

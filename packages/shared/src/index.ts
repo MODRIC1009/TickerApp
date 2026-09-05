@@ -39,6 +39,25 @@ export interface Instrument {
     sedol?: string;
     figi?: string;
   };
+  metadata?: InstrumentMetadata;
+}
+
+export interface InstrumentClassification {
+  sector?: string;
+  industry?: string;
+  countryOfDomicile?: string;
+  countryOfListing?: string;
+}
+
+export interface InstrumentSource {
+  providerId: string;
+  providerSymbol: string;
+  providerExchangeId?: string;
+}
+
+export interface InstrumentMetadata {
+  classification?: InstrumentClassification;
+  source?: InstrumentSource;
 }
 
 export interface Quote {

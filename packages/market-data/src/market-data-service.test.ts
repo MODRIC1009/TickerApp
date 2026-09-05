@@ -71,7 +71,7 @@ describe("MarketDataService", () => {
     );
   });
 
-    it("rejects an unknown provider", async () => {
+  it("rejects an unknown provider", async () => {
     const provider = createProvider();
     const registry = new MarketDataProviderRegistry();
 
@@ -238,7 +238,7 @@ describe("MarketDataService", () => {
     expect(fallback.listExchanges).toHaveBeenCalled();
   });
 
-    it("aggregates provider health correctly", async () => {
+  it("aggregates provider health correctly", async () => {
     const healthy = createProvider({
       id: "healthy",
       healthCheck: vi.fn(async () => ({
@@ -284,7 +284,7 @@ describe("MarketDataService", () => {
     );
   });
 
-    it("returns default provider status and capabilities", () => {
+  it("returns default provider status and capabilities", () => {
     const provider = createProvider({
       id: "primary",
       name: "Primary Provider",
@@ -318,7 +318,7 @@ describe("MarketDataService", () => {
     });
   });
 
-    it("caches instruments returned by providers", async () => {
+  it("caches instruments returned by providers", async () => {
     const instrument: Instrument = {
       symbol: "AAPL",
       name: "Apple Inc.",
@@ -364,7 +364,7 @@ describe("MarketDataService", () => {
     });
   });
 
-    it("normalizes and caches instruments returned from search", async () => {
+  it("normalizes and caches instruments returned from search", async () => {
     const instrument: Instrument = {
       symbol: "aapl",
       name: "Apple Inc.",
@@ -430,7 +430,7 @@ describe("MarketDataService", () => {
     });
   });
 
-    it("delegates historical price requests to the selected provider", async () => {
+  it("delegates historical price requests to the selected provider", async () => {
     const bars = [
       {
         timestamp: "2026-09-01T00:00:00.000Z",
@@ -445,8 +445,9 @@ describe("MarketDataService", () => {
     const provider = createProvider({
       id: "primary",
       getHistoricalPrices: vi.fn(
-        async (_request: HistoricalPriceRequest) =>
-          bars,
+        async (
+          _request: HistoricalPriceRequest,
+        ) => bars,
       ),
     });
 
@@ -474,7 +475,7 @@ describe("MarketDataService", () => {
     ).toHaveBeenCalledWith(request);
   });
 
-    it("uses an explicitly selected provider", async () => {
+  it("uses an explicitly selected provider", async () => {
     const defaultProvider = createProvider({
       id: "default",
       getQuote: vi.fn(async () => ({
@@ -522,7 +523,7 @@ describe("MarketDataService", () => {
     ).toHaveBeenCalledWith("AAPL");
   });
 
-    it("does not fallback for invalid request errors", async () => {
+  it("does not fallback for invalid request errors", async () => {
     const primary = createProvider({
       id: "primary",
       getQuote: vi.fn(async () => {
@@ -565,5 +566,100 @@ describe("MarketDataService", () => {
     });
 
     expect(fallback.getQuote).not.toHaveBeenCalled();
+  });
+
+  it("finds cached instruments by symbol", () => {
+    const service = new MarketDataService(
+      new MarketDataProviderRegistry(),
+      "primary",
+    );
+
+    const results =
+      service.findInstrumentsBySymbol(
+        " aapl ",
+      );
+
+    expect(results).toHaveLength(1);
+
+    expect(results[0]).toMatchObject({
+      symbol: "AAPL",
+      countryCode: "US",
+      exchangeId: "nasdaq",
+    });
+  });
+
+  it("finds cached instruments by country", () => {
+    const service = new MarketDataService(
+      new MarketDataProviderRegistry(),
+      "primary",
+    );
+
+    const results =
+      service.findInstrumentsByCountry(
+        " us ",
+      );
+
+    expect(results.length).toBeGreaterThan(
+      0,
+    );
+
+    expect(
+      results.every(
+        (instrument) =>
+          instrument.countryCode ===
+          "US",
+      ),
+    ).toBe(true);
+  });
+
+  it("finds cached instruments by exchange", () => {
+    const service = new MarketDataService(
+      new MarketDataProviderRegistry(),
+      "primary",
+    );
+
+    const results =
+      service.findInstrumentsByExchange(
+        " NASDAQ ",
+      );
+
+    expect(results.length).toBeGreaterThan(
+      0,
+    );
+
+    expect(
+      results.every(
+        (instrument) =>
+          instrument.exchangeId ===
+          "nasdaq",
+      ),
+    ).toBe(true);
+  });
+
+  it("finds cached instruments by country and exchange", () => {
+    const service = new MarketDataService(
+      new MarketDataProviderRegistry(),
+      "primary",
+    );
+
+    const results =
+      service.findInstrumentsByCountryAndExchange(
+        " us ",
+        " NASDAQ ",
+      );
+
+    expect(results.length).toBeGreaterThan(
+      0,
+    );
+
+    expect(
+      results.every(
+        (instrument) =>
+          instrument.countryCode ===
+            "US" &&
+          instrument.exchangeId ===
+            "nasdaq",
+      ),
+    ).toBe(true);
   });
 });
