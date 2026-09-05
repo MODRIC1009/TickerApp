@@ -20,6 +20,10 @@ export interface Exchange {
   region: MarketRegion;
   currency: string;
   timezone: string;
+  regularSession: {
+    open: string;
+    close: string;
+  };
 }
 
 export interface Instrument {

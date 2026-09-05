@@ -19,6 +19,10 @@ const exchanges: Exchange[] = [
     region: "north-america",
     currency: "USD",
     timezone: "America/New_York",
+    regularSession: {
+  open: "09:30",
+  close: "16:00",
+},
   },
   {
     id: "nyse",
@@ -27,6 +31,10 @@ const exchanges: Exchange[] = [
     region: "north-america",
     currency: "USD",
     timezone: "America/New_York",
+    regularSession: {
+  open: "09:30",
+  close: "16:00",
+},
   },
   {
     id: "nse",
@@ -35,6 +43,10 @@ const exchanges: Exchange[] = [
     region: "asia-pacific",
     currency: "INR",
     timezone: "Asia/Kolkata",
+    regularSession: {
+  open: "09:15",
+  close: "15:30",
+},
   },
 ];
 
