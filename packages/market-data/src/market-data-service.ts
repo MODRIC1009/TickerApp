@@ -11,17 +11,76 @@ import type {
   MarketDataProvider,
   MarketDataProviderHealth,
 } from "./index";
+import { InstrumentRegistry } from "./instrument-registry";
 import { MarketDataProviderRegistry } from "./provider-registry";
+import { normalizeSymbol } from "./instrument-identity";
+import { MarketDataError } from "./errors";
+import {
+  createInstrumentIdentity,
+  getInstrumentIdentityKey,
+} from "./instrument-identity";
+
+export interface MarketDataProviderSummary {
+  id: string;
+  name: string;
+  capabilities: MarketDataProvider["capabilities"];
+}
 
 export class MarketDataService {
   constructor(
     private readonly registry: MarketDataProviderRegistry,
     private readonly defaultProviderId: string,
+    private readonly instrumentRegistry: InstrumentRegistry =
+      new InstrumentRegistry(),
   ) {}
 
   getDefaultProvider(): MarketDataProvider {
     return this.getProvider();
   }
+
+  getProviders(): MarketDataProvider[] {
+  return this.registry.list();
+}
+
+getProviderSummaries(): MarketDataProviderSummary[] {
+  return this.getProviders().map((provider) => ({
+    id: provider.id,
+    name: provider.name,
+    capabilities: provider.capabilities,
+  }));
+}
+
+  getInstrumentRegistry(): InstrumentRegistry {
+  return this.instrumentRegistry;
+}
+
+getCachedInstrument(
+  countryCode: string,
+  exchangeId: string,
+  symbol: string,
+): Instrument | null {
+  return this.instrumentRegistry.get(
+    countryCode,
+    exchangeId,
+    symbol,
+  );
+}
+
+getInstrumentIdentity(
+  instrument: Instrument,
+): {
+  symbol: string;
+  exchangeId: string;
+  countryCode: string;
+  key: string;
+} {
+  const identity = createInstrumentIdentity(instrument);
+
+  return {
+    ...identity,
+    key: getInstrumentIdentityKey(instrument),
+  };
+}
 
   getProviderStatus(): {
     providerId: string;
@@ -45,55 +104,218 @@ export class MarketDataService {
     return provider.healthCheck();
   }
 
-  private getProvider(providerId?: string): MarketDataProvider {
-    return this.registry.get(
-      providerId ?? this.defaultProviderId,
+  async getHealth(): Promise<{
+  status: MarketDataProviderHealth["status"];
+  checkedAt: string;
+  providers: Array<
+    MarketDataProviderHealth & {
+      providerId: string;
+      providerName: string;
+    }
+  >;
+}> {
+  const providers = await Promise.all(
+    this.registry.list().map(async (provider) => {
+      const health = await provider.healthCheck();
+
+      return {
+        ...health,
+        providerId: provider.id,
+        providerName: provider.name,
+      };
+    }),
+  );
+
+  const status =
+    providers.some(
+      (provider) => provider.status === "healthy",
+    )
+      ? "healthy"
+      : providers.some(
+            (provider) => provider.status === "degraded",
+          )
+        ? "degraded"
+        : "unavailable";
+
+  return {
+    status,
+    checkedAt: new Date().toISOString(),
+    providers,
+  };
+}
+
+private resolveProviderId(
+  providerId?: string,
+): string {
+  const resolvedProviderId =
+    providerId?.trim() || this.defaultProviderId;
+
+  if (!this.registry.has(resolvedProviderId)) {
+    throw new MarketDataError(
+      "invalid_request",
+      `Unknown market data provider "${resolvedProviderId}".`,
+      {
+        providerId: resolvedProviderId,
+      },
     );
   }
 
+  return resolvedProviderId;
+}
+
+  private getProvider(
+  providerId?: string,
+): MarketDataProvider {
+  return this.registry.get(
+    this.resolveProviderId(providerId),
+  );
+}
+
+  private requireCapability(
+  provider: MarketDataProvider,
+  capability: keyof MarketDataProvider["capabilities"],
+): void {
+  if (!provider.capabilities[capability]) {
+    throw new MarketDataError(
+      "unsupported_capability",
+      `Market data provider "${provider.id}" does not support "${capability}".`,
+      {
+        providerId: provider.id,
+      },
+    );
+  }
+}
+
+private shouldFallback(error: unknown): boolean {
+  if (!(error instanceof MarketDataError)) {
+    return true;
+  }
+
+  return (
+    error.code === "provider_unavailable" ||
+    error.code === "rate_limited" ||
+    error.code === "provider_error"
+  );
+}
+
   private async withFallback<T>(
-    operation: (provider: MarketDataProvider) => Promise<T>,
-    providerId?: string,
-  ): Promise<T> {
-    const provider = this.getProvider(providerId);
+  operation: (provider: MarketDataProvider) => Promise<T>,
+  providerId?: string,
+  capability?: keyof MarketDataProvider["capabilities"],
+): Promise<T> {
+  const provider = this.getProvider(providerId);
 
-    try {
-      return await operation(provider);
-    } catch (error) {
-      const fallbackProvider =
-        this.registry.getFallbackProvider(provider.id);
+  if (
+    capability &&
+    !provider.capabilities[capability]
+  ) {
+    const fallbackProvider =
+      this.registry
+        .list()
+        .find(
+          (candidate) =>
+            candidate.id !== provider.id &&
+            candidate.capabilities[capability],
+        );
 
-      if (!fallbackProvider) {
+    if (!fallbackProvider) {
+      throw new MarketDataError(
+        "unsupported_capability",
+        `No registered market data provider supports "${capability}".`,
+        {
+          providerId: provider.id,
+        },
+      );
+    }
+
+    return operation(fallbackProvider);
+  }
+
+  try {
+    return await operation(provider);
+      } catch (error) {
+      if (!this.shouldFallback(error)) {
         throw error;
       }
 
-      console.warn(
-        `Market data provider "${provider.id}" failed. Falling back to "${fallbackProvider.id}".`,
-        error,
-      );
+      const fallbackProvider =
+      this.registry
+        .list()
+        .find(
+          (candidate) =>
+            candidate.id !== provider.id &&
+            (!capability ||
+              candidate.capabilities[capability]),
+        ) ?? null;
 
-      return operation(fallbackProvider);
+    if (!fallbackProvider) {
+      throw error;
     }
+
+    console.warn(
+      `Market data provider "${provider.id}" failed. Falling back to "${fallbackProvider.id}".`,
+      error,
+    );
+
+    return operation(fallbackProvider);
   }
+}
 
   async searchInstruments(
     query: string,
     providerId?: string,
   ): Promise<InstrumentSearchResult[]> {
-    return this.withFallback(
-      (provider) => provider.searchInstruments(query),
+    const results = await this.withFallback(
+      (provider) => {
+        this.requireCapability(provider, "searchInstruments");
+
+        return provider.searchInstruments(query);
+            },
       providerId,
+      "searchInstruments",
     );
+
+    return results.map((result) => {
+      const instrument = {
+        ...result.instrument,
+        symbol: normalizeSymbol(result.instrument.symbol),
+      };
+
+      this.instrumentRegistry.upsert(instrument);
+
+      return {
+        ...result,
+        instrument,
+      };
+    });
   }
 
   async getInstrument(
     symbol: string,
     providerId?: string,
   ): Promise<Instrument | null> {
-    return this.withFallback(
-      (provider) => provider.getInstrument(symbol),
+    const instrument = await this.withFallback(
+      (provider) => {
+        this.requireCapability(provider, "instrumentDetails");
+
+        return provider.getInstrument(symbol);
+            },
       providerId,
+      "instrumentDetails",
     );
+
+    if (!instrument) {
+      return null;
+    }
+
+    const normalizedInstrument = {
+      ...instrument,
+      symbol: normalizeSymbol(instrument.symbol),
+    };
+
+    this.instrumentRegistry.upsert(normalizedInstrument);
+
+    return normalizedInstrument;
   }
 
   async getQuote(
@@ -101,8 +323,13 @@ export class MarketDataService {
     providerId?: string,
   ): Promise<Quote | null> {
     return this.withFallback(
-      (provider) => provider.getQuote(symbol),
+      (provider) => {
+        this.requireCapability(provider, "quotes");
+
+        return provider.getQuote(symbol);
+            },
       providerId,
+      "quotes",
     );
   }
 
@@ -111,8 +338,13 @@ export class MarketDataService {
     providerId?: string,
   ): Promise<OHLCVBar[]> {
     return this.withFallback(
-      (provider) => provider.getHistoricalPrices(request),
+      (provider) => {
+        this.requireCapability(provider, "historicalPrices");
+
+        return provider.getHistoricalPrices(request);
+            },
       providerId,
+      "historicalPrices",
     );
   }
 
@@ -120,8 +352,13 @@ export class MarketDataService {
     providerId?: string,
   ): Promise<Exchange[]> {
     return this.withFallback(
-      (provider) => provider.listExchanges(),
+      (provider) => {
+        this.requireCapability(provider, "exchanges");
+
+        return provider.listExchanges();
+            },
       providerId,
+      "exchanges",
     );
   }
 }

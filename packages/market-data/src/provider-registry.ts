@@ -1,24 +1,37 @@
 import type { MarketDataProvider } from "./index";
 
 export class MarketDataProviderRegistry {
-  private readonly providers = new Map<string, MarketDataProvider>();
+  private readonly providers = new Map<
+    string,
+    MarketDataProvider
+  >();
 
   register(provider: MarketDataProvider): void {
-    if (this.providers.has(provider.id)) {
+    const providerId = provider.id.trim();
+
+    if (!providerId) {
       throw new Error(
-        `Market data provider "${provider.id}" is already registered.`,
+        "Market data provider ID cannot be empty.",
       );
     }
 
-    this.providers.set(provider.id, provider);
+    if (this.providers.has(providerId)) {
+      throw new Error(
+        `Market data provider "${providerId}" is already registered.`,
+      );
+    }
+
+    this.providers.set(providerId, provider);
   }
 
   get(providerId: string): MarketDataProvider {
-    const provider = this.providers.get(providerId);
+    const normalizedProviderId = providerId.trim();
+    const provider =
+      this.providers.get(normalizedProviderId);
 
     if (!provider) {
       throw new Error(
-        `Market data provider "${providerId}" is not registered.`,
+        `Market data provider "${normalizedProviderId}" is not registered.`,
       );
     }
 
@@ -26,17 +39,24 @@ export class MarketDataProviderRegistry {
   }
 
   has(providerId: string): boolean {
-    return this.providers.has(providerId);
+    return this.providers.has(providerId.trim());
   }
 
   list(): MarketDataProvider[] {
     return [...this.providers.values()];
   }
 
-  getFallbackProvider(excludeProviderId: string): MarketDataProvider | null {
+  getFallbackProvider(
+    excludeProviderId: string,
+  ): MarketDataProvider | null {
+    const normalizedProviderId =
+      excludeProviderId.trim();
+
     return (
-      this.list().find((provider) => provider.id !== excludeProviderId) ??
-      null
+      this.list().find(
+        (provider) =>
+          provider.id !== normalizedProviderId,
+      ) ?? null
     );
   }
 }

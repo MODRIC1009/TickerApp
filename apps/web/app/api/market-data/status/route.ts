@@ -6,19 +6,22 @@ export async function GET() {
   try {
     const marketDataService = getMarketDataService();
     const status = marketDataService.getProviderStatus();
-    const health = await marketDataService.getProviderHealth();
+    const health = await marketDataService.getHealth();
 
     const isOnline =
       health.status === "healthy" ||
       health.status === "degraded";
 
-    return NextResponse.json({
-      status: isOnline ? "online" : "offline",
-      ...status,
-      health,
-    }, {
-      status: isOnline ? 200 : 503,
-    });
+    return NextResponse.json(
+      {
+        status: isOnline ? "online" : "offline",
+        ...status,
+        health,
+      },
+      {
+        status: isOnline ? 200 : 503,
+      },
+    );
   } catch (error) {
     console.error(
       "Market data status request failed:",
@@ -34,7 +37,7 @@ export async function GET() {
         health: {
           status: "unavailable",
           checkedAt: new Date().toISOString(),
-          message: "Market data provider health check failed.",
+          providers: [],
         },
       },
       { status: 503 },

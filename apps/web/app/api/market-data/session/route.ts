@@ -1,22 +1,38 @@
 import { NextResponse } from "next/server";
 
-import { getMarketSession } from "@tickerapp/market-data";
+import {
+  getMarketSession,
+} from "@tickerapp/market-data";
 import { getMarketDataService } from "@/lib/market-data";
+import {
+  marketDataErrorResponse,
+} from "@/lib/market-data-api";
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
-  const exchangeId = searchParams.get("exchange")?.trim();
+
+  const exchangeId = searchParams
+    .get("exchange")
+    ?.trim();
+
+  const providerId =
+    searchParams.get("provider")?.trim() || undefined;
 
   if (!exchangeId) {
     return NextResponse.json(
-      { error: "Missing required query parameter: exchange" },
+      {
+        error:
+          "Missing required query parameter: exchange",
+      },
       { status: 400 },
     );
   }
 
   try {
     const exchanges =
-      await getMarketDataService().listExchanges();
+      await getMarketDataService().listExchanges(
+        providerId,
+      );
 
     const exchange = exchanges.find(
       (item) => item.id === exchangeId,
@@ -40,11 +56,14 @@ export async function GET(request: Request) {
       session,
     });
   } catch (error) {
-    console.error("Market session request failed:", error);
+    console.error(
+      "Market session request failed:",
+      error,
+    );
 
-    return NextResponse.json(
-      { error: "Market session request failed." },
-      { status: 502 },
+    return marketDataErrorResponse(
+      error,
+      "Market session request failed.",
     );
   }
 }

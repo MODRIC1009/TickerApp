@@ -1,8 +1,6 @@
 import { NextResponse } from "next/server";
 
-import {
-  validateSymbol,
-} from "@tickerapp/market-data";
+import { validateSymbol } from "@tickerapp/market-data";
 import { getMarketDataService } from "@/lib/market-data";
 import {
   marketDataErrorResponse,
@@ -24,32 +22,38 @@ export async function GET(request: Request) {
 
   try {
     const symbol = validateSymbol(rawSymbol);
+    const marketDataService =
+      getMarketDataService();
 
-    const quote =
-      await getMarketDataService().getQuote(
+    const instrument =
+      await marketDataService.getInstrument(
         symbol,
         providerId,
       );
 
-    if (!quote) {
+    if (!instrument) {
       return NextResponse.json(
-        { error: `Quote for "${symbol}" not found.` },
+        { error: `Instrument "${symbol}" not found.` },
         { status: 404 },
       );
     }
 
     return NextResponse.json({
-      quote,
+      instrument,
+      identity:
+        marketDataService.getInstrumentIdentity(
+          instrument,
+        ),
     });
   } catch (error) {
     console.error(
-      "Market quote request failed:",
+      "Market instrument lookup failed:",
       error,
     );
 
     return marketDataErrorResponse(
       error,
-      "Market quote request failed.",
+      "Market instrument lookup failed.",
     );
   }
 }

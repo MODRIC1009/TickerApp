@@ -57,7 +57,13 @@ export interface MarketDataProvider {
 
 export { MarketDataProviderRegistry } from "./provider-registry";
 export { DemoMarketDataProvider } from "./providers/demo-provider";
-export { MarketDataService } from "./market-data-service";
+export {
+  MarketDataService,
+} from "./market-data-service";
+
+export type {
+  MarketDataProviderSummary,
+} from "./market-data-service";
 export {
   createMarketDataService,
 } from "./container";
@@ -102,3 +108,25 @@ export {
 export type {
   MarketDataConfig,
 } from "./config";
+export {
+  createInstrumentIdentity,
+  getInstrumentIdentityKey,
+  normalizeSymbol,
+} from "./instrument-identity";
+
+export type {
+  CanonicalInstrumentIdentity,
+} from "./instrument-identity";
+export { InstrumentRegistry } from "./instrument-registry";
+export {
+  MarketDataError,
+} from "./errors";
+
+export type {
+  MarketDataErrorCode,
+} from "./errors";
+export type {
+  MarketDataApiError,
+  MarketDataApiSuccess,
+  MarketDataApiList,
+} from "./api-types";

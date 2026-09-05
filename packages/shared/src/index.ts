@@ -33,6 +33,12 @@ export interface Instrument {
   countryCode: string;
   currency: string;
   assetClass: AssetClass;
+  identifiers?: {
+    isin?: string;
+    cusip?: string;
+    sedol?: string;
+    figi?: string;
+  };
 }
 
 export interface Quote {

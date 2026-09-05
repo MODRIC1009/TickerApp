@@ -1,10 +1,11 @@
-import { GLOBAL_EXCHANGES } from "../exchange-catalog";
-
 import type {
   Instrument,
   OHLCVBar,
   Quote,
 } from "@tickerapp/shared";
+
+import { GLOBAL_EXCHANGES } from "../exchange-catalog";
+import { MarketDataError } from "../errors";
 
 import type {
   HistoricalPriceRequest,
@@ -87,7 +88,16 @@ const quotes: Quote[] = [
   },
 ];
 
-export class DemoMarketDataProvider implements MarketDataProvider {
+const intervalMinutes = {
+  "1d": 24 * 60,
+  "1h": 60,
+  "15m": 15,
+  "5m": 5,
+} as const;
+
+export class DemoMarketDataProvider
+  implements MarketDataProvider
+{
   readonly id = "demo";
   readonly name = "Demo Market Data";
 
@@ -102,7 +112,8 @@ export class DemoMarketDataProvider implements MarketDataProvider {
   async searchInstruments(
     query: string,
   ): Promise<InstrumentSearchResult[]> {
-    const normalizedQuery = query.trim().toLowerCase();
+    const normalizedQuery =
+      query.trim().toLowerCase();
 
     if (!normalizedQuery) {
       return [];
@@ -111,42 +122,84 @@ export class DemoMarketDataProvider implements MarketDataProvider {
     return instruments
       .filter((instrument) => {
         return (
-          instrument.symbol.toLowerCase().includes(normalizedQuery) ||
-          instrument.name.toLowerCase().includes(normalizedQuery)
+          instrument.symbol
+            .toLowerCase()
+            .includes(normalizedQuery) ||
+          instrument.name
+            .toLowerCase()
+            .includes(normalizedQuery)
         );
       })
       .map((instrument) => ({
         instrument,
         score:
-          instrument.symbol.toLowerCase() === normalizedQuery
+          instrument.symbol.toLowerCase() ===
+          normalizedQuery
             ? 1
             : 0.5,
       }))
-      .sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
+      .sort(
+        (a, b) =>
+          (b.score ?? 0) - (a.score ?? 0),
+      );
   }
 
-  async getInstrument(symbol: string): Promise<Instrument | null> {
-    const normalizedSymbol = symbol.trim().toUpperCase();
+  async getInstrument(
+    symbol: string,
+  ): Promise<Instrument | null> {
+    const normalizedSymbol =
+      symbol.trim().toUpperCase();
 
-    return (
+    const instrument =
       instruments.find(
-        (instrument) => instrument.symbol === normalizedSymbol,
-      ) ?? null
-    );
+        (item) =>
+          item.symbol === normalizedSymbol,
+      ) ?? null;
+
+    if (!instrument) {
+      throw new MarketDataError(
+        "not_found",
+        `Instrument "${normalizedSymbol}" was not found.`,
+        {
+          providerId: this.id,
+        },
+      );
+    }
+
+    return instrument;
   }
 
-  async getQuote(symbol: string): Promise<Quote | null> {
-    const normalizedSymbol = symbol.trim().toUpperCase();
+  async getQuote(
+    symbol: string,
+  ): Promise<Quote | null> {
+    const normalizedSymbol =
+      symbol.trim().toUpperCase();
 
-    return (
-      quotes.find((quote) => quote.symbol === normalizedSymbol) ?? null
-    );
+    const quote =
+      quotes.find(
+        (item) =>
+          item.symbol === normalizedSymbol,
+      ) ?? null;
+
+    if (!quote) {
+      throw new MarketDataError(
+        "not_found",
+        `Quote for "${normalizedSymbol}" was not found.`,
+        {
+          providerId: this.id,
+        },
+      );
+    }
+
+    return quote;
   }
 
   async getHistoricalPrices(
     request: HistoricalPriceRequest,
   ): Promise<OHLCVBar[]> {
-    const instrument = await this.getInstrument(request.symbol);
+    const instrument = await this.getInstrument(
+      request.symbol,
+    );
 
     if (!instrument) {
       return [];
@@ -157,28 +210,68 @@ export class DemoMarketDataProvider implements MarketDataProvider {
 
     if (
       Number.isNaN(start.getTime()) ||
-      Number.isNaN(end.getTime()) ||
-      start > end
+      Number.isNaN(end.getTime())
     ) {
-      return [];
+      throw new MarketDataError(
+        "invalid_request",
+        "Invalid historical price date range.",
+        {
+          providerId: this.id,
+        },
+      );
     }
 
-    const quote = await this.getQuote(instrument.symbol);
+    if (start > end) {
+      throw new MarketDataError(
+        "invalid_request",
+        "Historical price start date must be before or equal to the end date.",
+        {
+          providerId: this.id,
+        },
+      );
+    }
+
+    const quote = await this.getQuote(
+      instrument.symbol,
+    );
 
     if (!quote) {
       return [];
     }
 
+    const stepMinutes =
+      intervalMinutes[request.interval];
+
     const bars: OHLCVBar[] = [];
     const current = new Date(start);
     let index = 0;
 
-    while (current <= end && bars.length < 500) {
-      const drift = Math.sin(index / 4) * quote.price * 0.015;
-      const close = Math.max(0.01, quote.price + drift);
-      const open = Math.max(0.01, close - quote.price * 0.004);
-      const high = close + quote.price * 0.008;
-      const low = Math.max(0.01, close - quote.price * 0.008);
+    while (
+      current <= end &&
+      bars.length < 500
+    ) {
+      const drift =
+        Math.sin(index / 4) *
+        quote.price *
+        0.015;
+
+      const close = Math.max(
+        0.01,
+        quote.price + drift,
+      );
+
+      const open = Math.max(
+        0.01,
+        close - quote.price * 0.004,
+      );
+
+      const high =
+        close + quote.price * 0.008;
+
+      const low = Math.max(
+        0.01,
+        close - quote.price * 0.008,
+      );
 
       bars.push({
         timestamp: current.toISOString(),
@@ -188,11 +281,16 @@ export class DemoMarketDataProvider implements MarketDataProvider {
         close,
         volume: Math.round(
           quote.volume *
-            (0.7 + Math.abs(Math.sin(index)) * 0.6),
+            (0.7 +
+              Math.abs(Math.sin(index)) *
+                0.6),
         ),
       });
 
-      current.setUTCDate(current.getUTCDate() + 1);
+      current.setUTCMinutes(
+        current.getUTCMinutes() + stepMinutes,
+      );
+
       index += 1;
     }
 
@@ -203,11 +301,14 @@ export class DemoMarketDataProvider implements MarketDataProvider {
     return {
       status: "healthy",
       checkedAt: new Date().toISOString(),
-      message: "Demo market data provider is operational.",
+      message:
+        "Demo market data provider is operational.",
     };
   }
 
-  async listExchanges(): Promise<import("@tickerapp/shared").Exchange[]> {
+  async listExchanges(): Promise<
+    import("@tickerapp/shared").Exchange[]
+  > {
     return GLOBAL_EXCHANGES;
   }
 }

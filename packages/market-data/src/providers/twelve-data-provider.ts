@@ -12,6 +12,8 @@ import type {
   MarketDataProviderHealth,
 } from "../index";
 
+import { MarketDataError } from "../errors";
+
 interface TwelveDataResponse {
   status?: string;
   message?: string;
@@ -96,40 +98,71 @@ export class TwelveDataProvider implements MarketDataProvider {
   }
 
   private async request<T extends TwelveDataResponse>(
-    endpoint: string,
-    params: Record<string, string>,
-  ): Promise<T> {
-    const url = new URL(endpoint, this.baseUrl);
+  endpoint: string,
+  params: Record<string, string>,
+): Promise<T> {
+  const url = new URL(endpoint, this.baseUrl);
 
-    for (const [key, value] of Object.entries(params)) {
-      url.searchParams.set(key, value);
-    }
+  for (const [key, value] of Object.entries(params)) {
+    url.searchParams.set(key, value);
+  }
 
-    url.searchParams.set("apikey", this.apiKey);
+  url.searchParams.set("apikey", this.apiKey);
 
-    const response = await fetch(url, {
+  let response: Response;
+
+  try {
+    response = await fetch(url, {
       headers: {
         Accept: "application/json",
       },
       cache: "no-store",
     });
-
-    if (!response.ok) {
-      throw new Error(
-        `Twelve Data request failed with HTTP ${response.status}.`,
-      );
-    }
-
-    const data = (await response.json()) as T;
-
-    if (data.status === "error") {
-      throw new Error(
-        data.message ?? "Twelve Data returned an API error.",
-      );
-    }
-
-    return data;
+  } catch (error) {
+    throw new MarketDataError(
+      "provider_unavailable",
+      "Twelve Data API is unreachable.",
+      {
+        providerId: this.id,
+        cause: error,
+      },
+    );
   }
+
+  if (response.status === 429) {
+    throw new MarketDataError(
+      "rate_limited",
+      "Twelve Data API rate limit exceeded.",
+      {
+        providerId: this.id,
+      },
+    );
+  }
+
+  if (!response.ok) {
+    throw new MarketDataError(
+      "provider_error",
+      `Twelve Data request failed with HTTP ${response.status}.`,
+      {
+        providerId: this.id,
+      },
+    );
+  }
+
+  const data = (await response.json()) as T;
+
+  if (data.status === "error") {
+    throw new MarketDataError(
+      "provider_error",
+      data.message ?? "Twelve Data returned an API error.",
+      {
+        providerId: this.id,
+      },
+    );
+  }
+
+  return data;
+}
 
   async searchInstruments(
     query: string,

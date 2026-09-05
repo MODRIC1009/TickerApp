@@ -4,17 +4,21 @@
   "private": true,
   "description": "Global equity intelligence and AI-powered research platform.",
   "workspaces": [
-  "apps/web",
-  "packages/ai",
-  "packages/analytics",
-  "packages/market-data",
-  "packages/portfolio",
-  "packages/shared"
-],
+    "apps/web",
+    "packages/ai",
+    "packages/analytics",
+    "packages/market-data",
+    "packages/portfolio",
+    "packages/shared"
+  ],
   "scripts": {
     "dev": "npm --workspace apps/web run dev",
     "build": "npm --workspace apps/web run build",
     "lint": "npm --workspace apps/web run lint",
-    "typecheck": "npm --workspace apps/web run typecheck"
+    "typecheck": "npm --workspace apps/web run typecheck",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "vitest": "^5.0.0"
   }
 }

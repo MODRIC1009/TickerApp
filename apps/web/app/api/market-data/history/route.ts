@@ -6,6 +6,9 @@ import {
   validateSymbol,
 } from "@tickerapp/market-data";
 import { getMarketDataService } from "@/lib/market-data";
+import {
+  marketDataErrorResponse,
+} from "@/lib/market-data-api";
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -14,6 +17,8 @@ export async function GET(request: Request) {
   const startDate = searchParams.get("startDate");
   const endDate = searchParams.get("endDate");
   const interval = searchParams.get("interval");
+  const providerId =
+    searchParams.get("provider")?.trim() || undefined;
 
   if (!rawSymbol || !startDate || !endDate || !interval) {
     return NextResponse.json(
@@ -27,17 +32,23 @@ export async function GET(request: Request) {
 
   try {
     const symbol = validateSymbol(rawSymbol);
-    const dates = validateDateRange(startDate, endDate);
+    const dates = validateDateRange(
+      startDate,
+      endDate,
+    );
     const validatedInterval =
       validateHistoricalInterval(interval);
 
     const bars =
-      await getMarketDataService().getHistoricalPrices({
-        symbol,
-        startDate: dates.startDate,
-        endDate: dates.endDate,
-        interval: validatedInterval,
-      });
+      await getMarketDataService().getHistoricalPrices(
+        {
+          symbol,
+          startDate: dates.startDate,
+          endDate: dates.endDate,
+          interval: validatedInterval,
+        },
+        providerId,
+      );
 
     return NextResponse.json({
       symbol,
@@ -47,14 +58,14 @@ export async function GET(request: Request) {
       bars,
     });
   } catch (error) {
-    const message =
-      error instanceof Error
-        ? error.message
-        : "Historical price request failed.";
+    console.error(
+      "Historical price request failed:",
+      error,
+    );
 
-    return NextResponse.json(
-      { error: message },
-      { status: 400 },
+    return marketDataErrorResponse(
+      error,
+      "Historical price request failed.",
     );
   }
 }
