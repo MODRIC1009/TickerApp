@@ -1,7 +1,6 @@
 import { GLOBAL_EXCHANGES } from "../exchange-catalog";
 
 import type {
-  Exchange,
   Instrument,
   OHLCVBar,
   Quote,
@@ -11,6 +10,7 @@ import type {
   HistoricalPriceRequest,
   InstrumentSearchResult,
   MarketDataProvider,
+  MarketDataProviderHealth,
 } from "../index";
 
 const instruments: Instrument[] = [
@@ -90,13 +90,14 @@ const quotes: Quote[] = [
 export class DemoMarketDataProvider implements MarketDataProvider {
   readonly id = "demo";
   readonly name = "Demo Market Data";
+
   readonly capabilities = {
-  searchInstruments: true,
-  instrumentDetails: true,
-  quotes: true,
-  historicalPrices: true,
-  exchanges: true,
-};
+    searchInstruments: true,
+    instrumentDetails: true,
+    quotes: true,
+    historicalPrices: true,
+    exchanges: true,
+  };
 
   async searchInstruments(
     query: string,
@@ -117,7 +118,9 @@ export class DemoMarketDataProvider implements MarketDataProvider {
       .map((instrument) => ({
         instrument,
         score:
-          instrument.symbol.toLowerCase() === normalizedQuery ? 1 : 0.5,
+          instrument.symbol.toLowerCase() === normalizedQuery
+            ? 1
+            : 0.5,
       }))
       .sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
   }
@@ -196,7 +199,15 @@ export class DemoMarketDataProvider implements MarketDataProvider {
     return bars;
   }
 
-  async listExchanges(): Promise<Exchange[]> {
+  async healthCheck(): Promise<MarketDataProviderHealth> {
+    return {
+      status: "healthy",
+      checkedAt: new Date().toISOString(),
+      message: "Demo market data provider is operational.",
+    };
+  }
+
+  async listExchanges(): Promise<import("@tickerapp/shared").Exchange[]> {
     return GLOBAL_EXCHANGES;
   }
 }

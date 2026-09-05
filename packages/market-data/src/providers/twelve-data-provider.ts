@@ -9,6 +9,7 @@ import type {
   HistoricalPriceRequest,
   InstrumentSearchResult,
   MarketDataProvider,
+  MarketDataProviderHealth,
 } from "../index";
 
 interface TwelveDataResponse {
@@ -72,13 +73,14 @@ export interface TwelveDataProviderOptions {
 export class TwelveDataProvider implements MarketDataProvider {
   readonly id = "twelve-data";
   readonly name = "Twelve Data";
+
   readonly capabilities = {
-  searchInstruments: true,
-  instrumentDetails: true,
-  quotes: true,
-  historicalPrices: true,
-  exchanges: false,
-};
+    searchInstruments: true,
+    instrumentDetails: true,
+    quotes: true,
+    historicalPrices: true,
+    exchanges: false,
+  };
 
   private readonly apiKey: string;
   private readonly baseUrl: string;
@@ -89,7 +91,8 @@ export class TwelveDataProvider implements MarketDataProvider {
     }
 
     this.apiKey = options.apiKey;
-    this.baseUrl = options.baseUrl ?? "https://api.twelvedata.com";
+    this.baseUrl =
+      options.baseUrl ?? "https://api.twelvedata.com";
   }
 
   private async request<T extends TwelveDataResponse>(
@@ -149,7 +152,8 @@ export class TwelveDataProvider implements MarketDataProvider {
       instrument: {
         symbol: item.symbol,
         name: item.instrument_name ?? item.symbol,
-        exchangeId: item.mic_code ?? item.exchange ?? "unknown",
+        exchangeId:
+          item.mic_code ?? item.exchange ?? "unknown",
         countryCode: "",
         currency: item.currency ?? "USD",
         assetClass: this.mapAssetClass(item.instrument_type),
@@ -157,7 +161,9 @@ export class TwelveDataProvider implements MarketDataProvider {
     }));
   }
 
-  async getInstrument(symbol: string): Promise<Instrument | null> {
+  async getInstrument(
+    symbol: string,
+  ): Promise<Instrument | null> {
     const results = await this.searchInstruments(symbol);
 
     const normalizedSymbol = symbol.trim().toUpperCase();
@@ -165,18 +171,22 @@ export class TwelveDataProvider implements MarketDataProvider {
     return (
       results.find(
         (result) =>
-          result.instrument.symbol.toUpperCase() === normalizedSymbol,
-      )?.instrument ?? results[0]?.instrument ?? null
+          result.instrument.symbol.toUpperCase() ===
+          normalizedSymbol,
+      )?.instrument ??
+      results[0]?.instrument ??
+      null
     );
   }
 
   async getQuote(symbol: string): Promise<Quote | null> {
-    const response = await this.request<TwelveDataQuoteResponse>(
-      "/quote",
-      {
-        symbol: symbol.trim(),
-      },
-    );
+    const response =
+      await this.request<TwelveDataQuoteResponse>(
+        "/quote",
+        {
+          symbol: symbol.trim(),
+        },
+      );
 
     if (!response.symbol || response.close === undefined) {
       return null;
@@ -192,9 +202,11 @@ export class TwelveDataProvider implements MarketDataProvider {
       symbol: response.symbol,
       price,
       change: this.toNumber(response.change) ?? 0,
-      changePercent: this.toNumber(response.percent_change) ?? 0,
+      changePercent:
+        this.toNumber(response.percent_change) ?? 0,
       volume: this.toNumber(response.volume) ?? 0,
-      marketCap: this.toNumber(response.market_cap) ?? undefined,
+      marketCap:
+        this.toNumber(response.market_cap) ?? undefined,
       timestamp: this.toTimestamp(
         response.timestamp,
         response.datetime,
@@ -235,7 +247,9 @@ export class TwelveDataProvider implements MarketDataProvider {
         }
 
         return {
-          timestamp: new Date(bar.datetime).toISOString(),
+          timestamp: new Date(
+            bar.datetime,
+          ).toISOString(),
           open,
           high,
           low,
@@ -243,14 +257,42 @@ export class TwelveDataProvider implements MarketDataProvider {
           volume: volume ?? 0,
         };
       })
-      .filter((bar): bar is OHLCVBar => bar !== null);
+      .filter(
+        (bar): bar is OHLCVBar => bar !== null,
+      );
+  }
+
+  async healthCheck(): Promise<MarketDataProviderHealth> {
+    try {
+      await this.request<TwelveDataQuoteResponse>(
+        "/quote",
+        {
+          symbol: "AAPL",
+        },
+      );
+
+      return {
+        status: "healthy",
+        checkedAt: new Date().toISOString(),
+        message: "Twelve Data API is reachable.",
+      };
+    } catch (error) {
+      return {
+        status: "unavailable",
+        checkedAt: new Date().toISOString(),
+        message:
+          error instanceof Error
+            ? error.message
+            : "Twelve Data API health check failed.",
+      };
+    }
   }
 
   async listExchanges(): Promise<Exchange[]> {
-  throw new Error(
-    "Twelve Data exchange listing is not implemented yet.",
-  );
-}
+    throw new Error(
+      "Twelve Data exchange listing is not implemented yet.",
+    );
+  }
 
   private mapInterval(
     interval: HistoricalPriceRequest["interval"],
@@ -300,7 +342,9 @@ export class TwelveDataProvider implements MarketDataProvider {
     datetime?: string,
   ): string {
     if (unixTimestamp !== undefined) {
-      return new Date(unixTimestamp * 1000).toISOString();
+      return new Date(
+        unixTimestamp * 1000,
+      ).toISOString();
     }
 
     if (datetime) {

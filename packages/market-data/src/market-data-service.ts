@@ -9,6 +9,7 @@ import type {
   HistoricalPriceRequest,
   InstrumentSearchResult,
   MarketDataProvider,
+  MarketDataProviderHealth,
 } from "./index";
 import { MarketDataProviderRegistry } from "./provider-registry";
 
@@ -19,25 +20,35 @@ export class MarketDataService {
   ) {}
 
   getDefaultProvider(): MarketDataProvider {
-  return this.getProvider();
- }
-  
-  getProviderStatus(): {
-  providerId: string;
-  providerName: string;
-  capabilities: MarketDataProvider["capabilities"];
-} {
-  const provider = this.getDefaultProvider();
+    return this.getProvider();
+  }
 
-  return {
-    providerId: provider.id,
-    providerName: provider.name,
-    capabilities: provider.capabilities,
-  };
-}
+  getProviderStatus(): {
+    providerId: string;
+    providerName: string;
+    capabilities: MarketDataProvider["capabilities"];
+  } {
+    const provider = this.getDefaultProvider();
+
+    return {
+      providerId: provider.id,
+      providerName: provider.name,
+      capabilities: provider.capabilities,
+    };
+  }
+
+  async getProviderHealth(
+    providerId?: string,
+  ): Promise<MarketDataProviderHealth> {
+    const provider = this.getProvider(providerId);
+
+    return provider.healthCheck();
+  }
 
   private getProvider(providerId?: string): MarketDataProvider {
-    return this.registry.get(providerId ?? this.defaultProviderId);
+    return this.registry.get(
+      providerId ?? this.defaultProviderId,
+    );
   }
 
   private async withFallback<T>(

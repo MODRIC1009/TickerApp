@@ -25,10 +25,22 @@ export interface MarketDataProviderCapabilities {
   exchanges: boolean;
 }
 
+export type MarketDataProviderHealthStatus =
+  | "healthy"
+  | "degraded"
+  | "unavailable";
+
+export interface MarketDataProviderHealth {
+  status: MarketDataProviderHealthStatus;
+  checkedAt: string;
+  message?: string;
+}
+
 export interface MarketDataProvider {
   readonly id: string;
   readonly name: string;
   readonly capabilities: MarketDataProviderCapabilities;
+  healthCheck(): Promise<MarketDataProviderHealth>;
 
   searchInstruments(query: string): Promise<InstrumentSearchResult[]>;
 
