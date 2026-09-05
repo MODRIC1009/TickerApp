@@ -1,0 +1,115 @@
+@import "tailwindcss";
+
+:root {
+  --background: #07090d;
+  --foreground: #f5f7fa;
+
+  --surface: #0c1017;
+  --surface-elevated: #111722;
+  --surface-hover: #151c28;
+
+  --border: #1d2633;
+  --border-subtle: #151c27;
+
+  --muted: #7f8a9a;
+  --muted-strong: #a7b0bd;
+
+  --accent: #35d07f;
+  --accent-strong: #62e6a0;
+  --accent-muted: rgba(53, 208, 127, 0.12);
+
+  --negative: #ff5c6c;
+  --negative-muted: rgba(255, 92, 108, 0.12);
+
+  --warning: #f5b942;
+  --warning-muted: rgba(245, 185, 66, 0.12);
+
+  --info: #5ca8ff;
+  --info-muted: rgba(92, 168, 255, 0.12);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+
+  --color-surface: var(--surface);
+  --color-surface-elevated: var(--surface-elevated);
+  --color-surface-hover: var(--surface-hover);
+
+  --color-border: var(--border);
+  --color-border-subtle: var(--border-subtle);
+
+  --color-muted: var(--muted);
+  --color-muted-strong: var(--muted-strong);
+
+  --color-accent: var(--accent);
+  --color-accent-strong: var(--accent-strong);
+
+  --color-negative: var(--negative);
+  --color-warning: var(--warning);
+  --color-info: var(--info);
+
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  background: var(--background);
+}
+
+body {
+  min-height: 100vh;
+  margin: 0;
+  background:
+    radial-gradient(
+      circle at 15% 10%,
+      rgba(53, 208, 127, 0.045),
+      transparent 30%
+    ),
+    radial-gradient(
+      circle at 85% 0%,
+      rgba(92, 168, 255, 0.035),
+      transparent 28%
+    ),
+    var(--background);
+  color: var(--foreground);
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+::selection {
+  background: rgba(53, 208, 127, 0.25);
+  color: var(--foreground);
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--background);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--muted);
+}

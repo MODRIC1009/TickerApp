@@ -6,3 +6,8 @@ echo ".vscode/" >> .gitignore
 .vscode/
 __pycache__/
 *.py[cod]
+# Node / Next.js
+node_modules/
+.next/
+out/
+
