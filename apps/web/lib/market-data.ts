@@ -9,6 +9,8 @@ export function getMarketDataService(): MarketDataService {
   if (!marketDataService) {
     marketDataService = createMarketDataService({
       twelveDataApiKey: process.env.TWELVE_DATA_API_KEY,
+      defaultProviderId:
+        process.env.MARKET_DATA_PROVIDER,
     });
   }
 

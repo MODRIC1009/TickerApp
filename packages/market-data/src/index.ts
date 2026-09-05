@@ -95,3 +95,10 @@ export type {
   HistoricalInterval,
   HistoricalRequestInput,
 } from "./request-validation";
+export {
+  createMarketDataConfig,
+} from "./config";
+
+export type {
+  MarketDataConfig,
+} from "./config";
