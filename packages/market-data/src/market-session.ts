@@ -1,5 +1,10 @@
 import type { Exchange } from "@tickerapp/shared";
 
+import {
+  WeekdayTradingCalendar,
+  type TradingCalendar,
+} from "./trading-calendar";
+
 export type MarketSessionStatus =
   | "pre-market"
   | "open"
@@ -16,12 +21,12 @@ export interface MarketSession {
 export function getMarketSession(
   exchange: Exchange,
   now: Date = new Date(),
+  calendar: TradingCalendar = new WeekdayTradingCalendar(),
 ): MarketSession {
   const localTimeParts = new Intl.DateTimeFormat("en-GB", {
     timeZone: exchange.timezone,
     hour: "2-digit",
     minute: "2-digit",
-    hour12: false,
     weekday: "short",
   }).formatToParts(now);
 
@@ -37,7 +42,11 @@ export function getMarketSession(
   const openMinutes = toMinutes(exchange.regularSession.open);
   const closeMinutes = toMinutes(exchange.regularSession.close);
 
-  if (weekday === "Sat" || weekday === "Sun") {
+  if (
+    weekday === "Sat" ||
+    weekday === "Sun" ||
+    !calendar.isTradingDay(exchange, now)
+  ) {
     return {
       status: "closed",
       localTime: formatLocalTime(hour, minute),

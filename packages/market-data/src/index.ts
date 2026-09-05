@@ -56,3 +56,10 @@ export type {
   MarketSessionStatus,
 } from "./market-session";
 export { GLOBAL_EXCHANGES } from "./exchange-catalog";
+export {
+  WeekdayTradingCalendar,
+} from "./trading-calendar";
+
+export type {
+  TradingCalendar,
+} from "./trading-calendar";
