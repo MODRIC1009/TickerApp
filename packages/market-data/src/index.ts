@@ -37,4 +37,12 @@ export interface MarketDataProvider {
 export { MarketDataProviderRegistry } from "./provider-registry";
 export { DemoMarketDataProvider } from "./providers/demo-provider";
 export { MarketDataService } from "./market-data-service";
-export { createMarketDataService } from "./container";
+export {
+  createMarketDataService,
+} from "./container";
+
+export type {
+  MarketDataContainerOptions,
+} from "./container";
+export { TwelveDataProvider } from "./providers/twelve-data-provider";
+export type { TwelveDataProviderOptions } from "./providers/twelve-data-provider";

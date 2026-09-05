@@ -2,32 +2,67 @@
 
 import { useEffect, useRef, useState } from "react";
 
-const suggestions = [
+interface SearchResult {
+  instrument: {
+    symbol: string;
+    name: string;
+    exchangeId: string;
+    countryCode: string;
+    currency: string;
+    assetClass: string;
+  };
+  score?: number;
+}
+
+const defaultSuggestions: SearchResult[] = [
   {
-    symbol: "AAPL",
-    name: "Apple Inc.",
-    type: "US Equity",
+    instrument: {
+      symbol: "AAPL",
+      name: "Apple Inc.",
+      exchangeId: "nasdaq",
+      countryCode: "US",
+      currency: "USD",
+      assetClass: "equity",
+    },
   },
   {
-    symbol: "NVDA",
-    name: "NVIDIA Corporation",
-    type: "US Equity",
+    instrument: {
+      symbol: "NVDA",
+      name: "NVIDIA Corporation",
+      exchangeId: "nasdaq",
+      countryCode: "US",
+      currency: "USD",
+      assetClass: "equity",
+    },
   },
   {
-    symbol: "MSFT",
-    name: "Microsoft Corporation",
-    type: "US Equity",
+    instrument: {
+      symbol: "MSFT",
+      name: "Microsoft Corporation",
+      exchangeId: "nasdaq",
+      countryCode: "US",
+      currency: "USD",
+      assetClass: "equity",
+    },
   },
   {
-    symbol: "RELIANCE",
-    name: "Reliance Industries",
-    type: "India Equity",
+    instrument: {
+      symbol: "RELIANCE",
+      name: "Reliance Industries",
+      exchangeId: "nse",
+      countryCode: "IN",
+      currency: "INR",
+      assetClass: "equity",
+    },
   },
 ];
 
 export function GlobalSearch() {
   const [query, setQuery] = useState("");
+  const [results, setResults] =
+    useState<SearchResult[]>(defaultSuggestions);
   const [isFocused, setIsFocused] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
 
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -43,6 +78,7 @@ export function GlobalSearch() {
 
       if (event.key === "Escape") {
         setQuery("");
+        setResults(defaultSuggestions);
         inputRef.current?.blur();
         setIsFocused(false);
       }
@@ -55,17 +91,56 @@ export function GlobalSearch() {
     };
   }, []);
 
-  const normalizedQuery = query.trim().toLowerCase();
+  useEffect(() => {
+    const normalizedQuery = query.trim();
 
-  const filteredSuggestions = normalizedQuery
-    ? suggestions.filter(
-        (item) =>
-          item.symbol.toLowerCase().includes(normalizedQuery) ||
-          item.name.toLowerCase().includes(normalizedQuery),
-      )
-    : suggestions;
+    if (normalizedQuery.length < 2) {
+  return;
+}
 
-  const showSuggestions = isFocused && filteredSuggestions.length > 0;
+    const controller = new AbortController();
+
+    const timeoutId = window.setTimeout(async () => {
+      try {
+        setIsLoading(true);
+
+        const response = await fetch(
+          `/api/market-data/search?q=${encodeURIComponent(normalizedQuery)}`,
+          {
+            signal: controller.signal,
+          },
+        );
+
+        if (!response.ok) {
+          throw new Error("Search request failed.");
+        }
+
+        const data = (await response.json()) as {
+          results?: SearchResult[];
+        };
+
+        setResults(data.results ?? []);
+      } catch (error) {
+        if (!controller.signal.aborted) {
+          console.error("Global search failed:", error);
+          setResults([]);
+        }
+      } finally {
+        if (!controller.signal.aborted) {
+          setIsLoading(false);
+        }
+      }
+    }, 250);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+      controller.abort();
+    };
+  }, [query]);
+
+  const showSuggestions = isFocused && (
+    isLoading || results.length > 0
+  );
 
   return (
     <div className="relative w-full max-w-xl">
@@ -106,27 +181,43 @@ export function GlobalSearch() {
           </div>
 
           <div className="p-1.5">
-            {filteredSuggestions.map((item) => (
-              <a
-                key={item.symbol}
-                href={`/stocks/${item.symbol}`}
-                className="flex items-center justify-between rounded-lg px-3 py-2.5 transition-colors hover:bg-surface-hover"
-              >
-                <div className="min-w-0">
-                  <div className="font-mono text-sm font-semibold text-foreground">
-                    {item.symbol}
-                  </div>
+            {isLoading ? (
+              <div className="px-3 py-4 text-xs text-muted">
+                Searching market data...
+              </div>
+            ) : results.length > 0 ? (
+              results.map((result) => {
+                const instrument = result.instrument;
 
-                  <div className="truncate text-xs text-muted">
-                    {item.name}
-                  </div>
-                </div>
+                return (
+                  <a
+                    key={`${instrument.exchangeId}-${instrument.symbol}`}
+                    href={`/stocks/${encodeURIComponent(instrument.symbol)}`}
+                    className="flex items-center justify-between rounded-lg px-3 py-2.5 transition-colors hover:bg-surface-hover"
+                  >
+                    <div className="min-w-0">
+                      <div className="font-mono text-sm font-semibold text-foreground">
+                        {instrument.symbol}
+                      </div>
 
-                <span className="ml-4 shrink-0 text-[10px] uppercase tracking-[0.1em] text-muted">
-                  {item.type}
-                </span>
-              </a>
-            ))}
+                      <div className="truncate text-xs text-muted">
+                        {instrument.name}
+                      </div>
+                    </div>
+
+                    <span className="ml-4 shrink-0 text-[10px] uppercase tracking-[0.1em] text-muted">
+                      {instrument.countryCode
+                        ? `${instrument.countryCode} ${instrument.assetClass}`
+                        : instrument.assetClass}
+                    </span>
+                  </a>
+                );
+              })
+            ) : (
+              <div className="px-3 py-4 text-xs text-muted">
+                No instruments found.
+              </div>
+            )}
           </div>
 
           <div className="border-t border-border-subtle px-3 py-2">
