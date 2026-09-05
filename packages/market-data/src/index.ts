@@ -46,3 +46,4 @@ export type {
 } from "./container";
 export { TwelveDataProvider } from "./providers/twelve-data-provider";
 export type { TwelveDataProviderOptions } from "./providers/twelve-data-provider";
+export { ExchangeRegistry } from "./exchange-registry";
