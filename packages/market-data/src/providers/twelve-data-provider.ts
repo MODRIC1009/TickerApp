@@ -240,8 +240,10 @@ export class TwelveDataProvider implements MarketDataProvider {
   }
 
   async listExchanges(): Promise<Exchange[]> {
-    return [];
-  }
+  throw new Error(
+    "Twelve Data exchange listing is not implemented yet.",
+  );
+}
 
   private mapInterval(
     interval: HistoricalPriceRequest["interval"],
