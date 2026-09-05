@@ -1,3 +1,5 @@
+import { getMarketDataService } from "@/lib/market-data";
+
 const navigation = [
   { label: "Overview", href: "/" },
   { label: "Markets", href: "/markets" },
@@ -10,6 +12,9 @@ const navigation = [
 const secondaryNavigation = [{ label: "Settings", href: "/settings" }];
 
 export function Sidebar() {
+  const providerStatus =
+    getMarketDataService().getProviderStatus();
+
   return (
     <aside className="hidden h-screen w-60 shrink-0 flex-col border-r border-border bg-surface lg:flex">
       <div className="flex h-16 items-center border-b border-border px-5">
@@ -64,9 +69,12 @@ export function Sidebar() {
           <div className="text-[10px] font-medium uppercase tracking-[0.16em] text-muted">
             Data Status
           </div>
+
           <div className="mt-2 flex items-center gap-2">
             <span className="h-2 w-2 rounded-full bg-accent shadow-[0_0_10px_rgba(53,208,127,0.6)]" />
-            <span className="text-xs text-muted-strong">Systems Online</span>
+            <span className="text-xs text-muted-strong">
+              {providerStatus.providerName}
+            </span>
           </div>
         </div>
       </nav>

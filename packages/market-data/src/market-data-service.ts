@@ -18,6 +18,22 @@ export class MarketDataService {
     private readonly defaultProviderId: string,
   ) {}
 
+  getDefaultProvider(): MarketDataProvider {
+  return this.getProvider();
+ }
+  
+  getProviderStatus(): {
+  providerId: string;
+  providerName: string;
+} {
+  const provider = this.getDefaultProvider();
+
+  return {
+    providerId: provider.id,
+    providerName: provider.name,
+  };
+}
+
   private getProvider(providerId?: string): MarketDataProvider {
     return this.registry.get(providerId ?? this.defaultProviderId);
   }
