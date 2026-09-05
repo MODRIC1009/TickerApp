@@ -18,6 +18,7 @@ export async function GET() {
         status: "offline",
         providerId: null,
         providerName: null,
+        capabilities: null,
       },
       { status: 503 },
     );

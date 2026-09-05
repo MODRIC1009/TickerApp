@@ -17,9 +17,18 @@ export interface HistoricalPriceRequest {
   interval: "1d" | "1h" | "15m" | "5m";
 }
 
+export interface MarketDataProviderCapabilities {
+  searchInstruments: boolean;
+  instrumentDetails: boolean;
+  quotes: boolean;
+  historicalPrices: boolean;
+  exchanges: boolean;
+}
+
 export interface MarketDataProvider {
   readonly id: string;
   readonly name: string;
+  readonly capabilities: MarketDataProviderCapabilities;
 
   searchInstruments(query: string): Promise<InstrumentSearchResult[]>;
 

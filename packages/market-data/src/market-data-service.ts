@@ -25,12 +25,14 @@ export class MarketDataService {
   getProviderStatus(): {
   providerId: string;
   providerName: string;
+  capabilities: MarketDataProvider["capabilities"];
 } {
   const provider = this.getDefaultProvider();
 
   return {
     providerId: provider.id,
     providerName: provider.name,
+    capabilities: provider.capabilities,
   };
 }
 

@@ -72,6 +72,13 @@ export interface TwelveDataProviderOptions {
 export class TwelveDataProvider implements MarketDataProvider {
   readonly id = "twelve-data";
   readonly name = "Twelve Data";
+  readonly capabilities = {
+  searchInstruments: true,
+  instrumentDetails: true,
+  quotes: true,
+  historicalPrices: true,
+  exchanges: false,
+};
 
   private readonly apiKey: string;
   private readonly baseUrl: string;

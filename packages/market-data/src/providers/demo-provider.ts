@@ -90,6 +90,13 @@ const quotes: Quote[] = [
 export class DemoMarketDataProvider implements MarketDataProvider {
   readonly id = "demo";
   readonly name = "Demo Market Data";
+  readonly capabilities = {
+  searchInstruments: true,
+  instrumentDetails: true,
+  quotes: true,
+  historicalPrices: true,
+  exchanges: true,
+};
 
   async searchInstruments(
     query: string,
