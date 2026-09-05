@@ -22,37 +22,77 @@ export class MarketDataService {
     return this.registry.get(providerId ?? this.defaultProviderId);
   }
 
+  private async withFallback<T>(
+    operation: (provider: MarketDataProvider) => Promise<T>,
+    providerId?: string,
+  ): Promise<T> {
+    const provider = this.getProvider(providerId);
+
+    try {
+      return await operation(provider);
+    } catch (error) {
+      const fallbackProvider =
+        this.registry.getFallbackProvider(provider.id);
+
+      if (!fallbackProvider) {
+        throw error;
+      }
+
+      console.warn(
+        `Market data provider "${provider.id}" failed. Falling back to "${fallbackProvider.id}".`,
+        error,
+      );
+
+      return operation(fallbackProvider);
+    }
+  }
+
   async searchInstruments(
     query: string,
     providerId?: string,
   ): Promise<InstrumentSearchResult[]> {
-    return this.getProvider(providerId).searchInstruments(query);
+    return this.withFallback(
+      (provider) => provider.searchInstruments(query),
+      providerId,
+    );
   }
 
   async getInstrument(
     symbol: string,
     providerId?: string,
   ): Promise<Instrument | null> {
-    return this.getProvider(providerId).getInstrument(symbol);
+    return this.withFallback(
+      (provider) => provider.getInstrument(symbol),
+      providerId,
+    );
   }
 
   async getQuote(
     symbol: string,
     providerId?: string,
   ): Promise<Quote | null> {
-    return this.getProvider(providerId).getQuote(symbol);
+    return this.withFallback(
+      (provider) => provider.getQuote(symbol),
+      providerId,
+    );
   }
 
   async getHistoricalPrices(
     request: HistoricalPriceRequest,
     providerId?: string,
   ): Promise<OHLCVBar[]> {
-    return this.getProvider(providerId).getHistoricalPrices(request);
+    return this.withFallback(
+      (provider) => provider.getHistoricalPrices(request),
+      providerId,
+    );
   }
 
   async listExchanges(
     providerId?: string,
   ): Promise<Exchange[]> {
-    return this.getProvider(providerId).listExchanges();
+    return this.withFallback(
+      (provider) => provider.listExchanges(),
+      providerId,
+    );
   }
 }

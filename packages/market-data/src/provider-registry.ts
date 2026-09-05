@@ -32,4 +32,11 @@ export class MarketDataProviderRegistry {
   list(): MarketDataProvider[] {
     return [...this.providers.values()];
   }
+
+  getFallbackProvider(excludeProviderId: string): MarketDataProvider | null {
+    return (
+      this.list().find((provider) => provider.id !== excludeProviderId) ??
+      null
+    );
+  }
 }
