@@ -72,3 +72,14 @@ export {
 export type {
   TradingCalendar,
 } from "./trading-calendar";
+export {
+  HISTORICAL_INTERVALS,
+  validateDateRange,
+  validateHistoricalInterval,
+  validateSymbol,
+} from "./request-validation";
+
+export type {
+  HistoricalInterval,
+  HistoricalRequestInput,
+} from "./request-validation";
