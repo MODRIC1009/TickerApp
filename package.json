@@ -20,5 +20,8 @@
   },
   "devDependencies": {
     "vitest": "^5.0.0"
+  },
+  "dependencies": {
+    "recharts": "^3.10.1"
   }
 }

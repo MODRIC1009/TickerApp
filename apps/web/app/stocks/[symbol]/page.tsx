@@ -1,3 +1,9 @@
+import { PriceHistoryChart } from "@/components/market-data/price-history-chart";
+import { StockResearchPanel } from "@/components/research/stock-research-panel";
+import { getMarketDataService } from "@/lib/market-data";
+
+import type { OHLCVBar } from "@tickerapp/shared";
+
 interface StockPageProps {
   params: Promise<{
     symbol: string;
@@ -67,12 +73,51 @@ function formatSymbol(symbol: string) {
   return symbol.trim().toUpperCase();
 }
 
-export default async function StockPage({ params }: StockPageProps) {
+export default async function StockPage({
+  params,
+}: StockPageProps) {
   const { symbol: rawSymbol } = await params;
   const symbol = formatSymbol(rawSymbol);
 
   const stock =
-    stockData[symbol as keyof typeof stockData] ?? stockData.AAPL;
+    stockData[
+      symbol as keyof typeof stockData
+    ] ?? stockData.AAPL;
+
+  const countryCode =
+    stock.country === "United States"
+      ? "US"
+      : "IN";
+
+  const today = new Date();
+
+  const endDate = today
+    .toISOString()
+    .slice(0, 10);
+
+  const start = new Date(today);
+
+  start.setFullYear(
+    start.getFullYear() - 1,
+  );
+
+  const startDate = start
+    .toISOString()
+    .slice(0, 10);
+
+  let historicalBars: OHLCVBar[] = [];
+
+  try {
+    historicalBars =
+      await getMarketDataService().getHistoricalPrices({
+        symbol,
+        startDate,
+        endDate,
+        interval: "1d",
+      });
+  } catch {
+    historicalBars = [];
+  }
 
   return (
     <div className="mx-auto w-full max-w-[1600px] px-4 py-6 sm:px-6 lg:px-8">
@@ -117,12 +162,35 @@ export default async function StockPage({ params }: StockPageProps) {
       </section>
 
       <section className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-6">
-        <Metric label="Market Cap" value={stock.marketCap} />
-        <Metric label="P / E" value={stock.pe} />
-        <Metric label="Beta" value={stock.beta} />
-        <Metric label="Volatility" value={stock.volatility} />
-        <Metric label="Quality Score" value={stock.quality} />
-        <Metric label="Growth Score" value={stock.growth} />
+        <Metric
+          label="Market Cap"
+          value={stock.marketCap}
+        />
+
+        <Metric
+          label="P / E"
+          value={stock.pe}
+        />
+
+        <Metric
+          label="Beta"
+          value={stock.beta}
+        />
+
+        <Metric
+          label="Volatility"
+          value={stock.volatility}
+        />
+
+        <Metric
+          label="Quality Score"
+          value={stock.quality}
+        />
+
+        <Metric
+          label="Growth Score"
+          value={stock.growth}
+        />
       </section>
 
       <section className="mt-6 grid gap-6 xl:grid-cols-[1.5fr_1fr]">
@@ -133,18 +201,13 @@ export default async function StockPage({ params }: StockPageProps) {
             </h2>
 
             <p className="mt-1 text-xs text-muted">
-              Historical market data visualization
+              One year of daily historical closing prices
             </p>
           </div>
 
-          <div className="flex h-80 items-center justify-center">
-            <div className="text-center">
-              <div className="font-mono text-2xl text-muted">CHART</div>
-              <p className="mt-2 text-xs text-muted">
-                Historical price data will connect in Phase 2.
-              </p>
-            </div>
-          </div>
+          <PriceHistoryChart
+            bars={historicalBars}
+          />
         </div>
 
         <div className="rounded-xl border border-border bg-surface">
@@ -159,55 +222,66 @@ export default async function StockPage({ params }: StockPageProps) {
           </div>
 
           <div className="space-y-4 p-5">
-            <ScoreRow label="Quality" value={stock.quality} />
-            <ScoreRow label="Growth" value={stock.growth} />
-            <ScoreRow label="Value" value="76" />
-            <ScoreRow label="Momentum" value="88" />
-            <ScoreRow label="Financial Health" value="91" />
-            <ScoreRow label="Risk" value="72" />
+            <ScoreRow
+              label="Quality"
+              value={stock.quality}
+            />
+
+            <ScoreRow
+              label="Growth"
+              value={stock.growth}
+            />
+
+            <ScoreRow
+              label="Value"
+              value="76"
+            />
+
+            <ScoreRow
+              label="Momentum"
+              value="88"
+            />
+
+            <ScoreRow
+              label="Financial Health"
+              value="91"
+            />
+
+            <ScoreRow
+              label="Risk"
+              value="72"
+            />
           </div>
         </div>
       </section>
 
-      <section className="mt-6 rounded-xl border border-border bg-surface">
-        <div className="border-b border-border px-5 py-4">
-          <h2 className="text-sm font-semibold text-foreground">
-            AI Research
-          </h2>
-
-          <p className="mt-1 text-xs text-muted">
-            Evidence-backed analysis will be available through the AI research
-            engine.
-          </p>
-        </div>
-
-        <div className="grid gap-4 p-5 md:grid-cols-3">
-          <ResearchCard
-            title="Investment Thesis"
-            description="Summarize the strongest fundamental and quantitative arguments."
-          />
-
-          <ResearchCard
-            title="Key Risks"
-            description="Identify material business, valuation, market, and balance-sheet risks."
-          />
-
-          <ResearchCard
-            title="Peer Comparison"
-            description="Compare this company against relevant industry and regional peers."
-          />
-        </div>
-      </section>
+      <StockResearchPanel
+        instrument={{
+          symbol,
+          name: stock.name,
+          exchangeId: stock.exchange,
+          countryCode,
+          currency: stock.currency,
+          assetClass: "equity",
+        }}
+      />
     </div>
   );
 }
 
-function Metric({ label, value }: { label: string; value: string }) {
+function Metric({
+  label,
+  value,
+}: {
+  label: string;
+  value: string;
+}) {
   return (
     <div className="rounded-xl border border-border bg-surface p-4">
       <p className="text-[10px] font-medium uppercase tracking-[0.14em] text-muted">
         {label}
       </p>
+
       <p className="mt-2 font-mono text-lg font-semibold text-foreground">
         {value}
       </p>
@@ -215,35 +289,33 @@ function Metric({ label, value }: { label: string; value: string }) {
   );
 }
 
-function ScoreRow({ label, value }: { label: string; value: string }) {
+function ScoreRow({
+  label,
+  value,
+}: {
+  label: string;
+  value: string;
+}) {
   return (
     <div>
       <div className="mb-2 flex items-center justify-between text-xs">
-        <span className="text-muted-strong">{label}</span>
-        <span className="font-mono text-foreground">{value}/100</span>
+        <span className="text-muted-strong">
+          {label}
+        </span>
+
+        <span className="font-mono text-foreground">
+          {value}/100
+        </span>
       </div>
 
       <div className="h-1.5 overflow-hidden rounded-full bg-background">
         <div
           className="h-full rounded-full bg-accent"
-          style={{ width: `${value}%` }}
+          style={{
+            width: `${value}%`,
+          }}
         />
       </div>
-    </div>
-  );
-}
-
-function ResearchCard({
-  title,
-  description,
-}: {
-  title: string;
-  description: string;
-}) {
-  return (
-    <div className="rounded-lg border border-border-subtle bg-background/50 p-4">
-      <h3 className="text-sm font-medium text-foreground">{title}</h3>
-      <p className="mt-2 text-xs leading-5 text-muted">{description}</p>
     </div>
   );
 }
