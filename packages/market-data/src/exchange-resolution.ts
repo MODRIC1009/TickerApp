@@ -12,6 +12,7 @@ const aliases: Record<string, string> = {
   NASDAQCM: "nasdaq",
   NASDAQGM: "nasdaq",
   XNAS: "nasdaq",
+  XNGS: "nasdaq",
 
   NYSE: "nyse",
   XNYS: "nyse",
