@@ -1,7 +1,9 @@
 import { PriceHistoryChart } from "@/components/market-data/price-history-chart";
 import { StockResearchPanel } from "@/components/research/stock-research-panel";
+import { StrategyLab } from "@/components/strategy/strategy-lab";
 import { getMarketDataService } from "@/lib/market-data";
 
+import type { StrategyInput } from "@tickerapp/analytics";
 import type { OHLCVBar } from "@tickerapp/shared";
 
 interface StockPageProps {
@@ -118,6 +120,12 @@ export default async function StockPage({
   } catch {
     historicalBars = [];
   }
+
+  const strategyPrices: StrategyInput[] =
+    historicalBars.map((bar) => ({
+      timestamp: bar.timestamp,
+      price: bar.close,
+    }));
 
   return (
     <div className="mx-auto w-full max-w-[1600px] px-4 py-6 sm:px-6 lg:px-8">
@@ -253,6 +261,13 @@ export default async function StockPage({
             />
           </div>
         </div>
+      </section>
+
+      <section className="mt-6">
+        <StrategyLab
+          symbol={symbol}
+          prices={strategyPrices}
+        />
       </section>
 
       <StockResearchPanel
