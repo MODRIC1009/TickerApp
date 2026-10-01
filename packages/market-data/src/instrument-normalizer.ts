@@ -13,6 +13,46 @@ export interface ProviderInstrumentInput {
   instrumentType?: string;
 }
 
+const countryAliases: Record<string, string> = {
+  UNITEDSTATES: "US",
+  USA: "US",
+  CANADA: "CA",
+  UNITEDKINGDOM: "GB",
+  UK: "GB",
+  GERMANY: "DE",
+  FRANCE: "FR",
+  NETHERLANDS: "NL",
+  SWITZERLAND: "CH",
+  INDIA: "IN",
+  JAPAN: "JP",
+  HONGKONG: "HK",
+  CHINA: "CN",
+  SOUTH KOREA: "KR",
+  KOREA: "KR",
+  TAIWAN: "TW",
+  SINGAPORE: "SG",
+  AUSTRALIA: "AU",
+  BRAZIL: "BR",
+  MEXICO: "MX",
+  "SOUTH AFRICA": "ZA",
+  SOUTHAFRICA: "ZA",
+};
+
+function normalizeCountryCode(
+  value?: string,
+): string {
+  const normalized =
+    value
+      ?.trim()
+      .toUpperCase()
+      .replace(/[^A-Z0-9]/g, "") ?? "";
+
+  return countryAliases[normalized] ??
+    (normalized.length === 2
+      ? normalized
+      : "");
+}
+
 export function normalizeProviderInstrument(
   providerId: string,
   input: ProviderInstrumentInput,
@@ -27,8 +67,9 @@ export function normalizeProviderInstrument(
 
   const countryCode =
     exchangeResolution.countryCode ||
-    input.countryCode?.trim().toUpperCase() ||
-    "";
+    normalizeCountryCode(
+      input.countryCode,
+    );
 
   return {
     symbol,
