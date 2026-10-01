@@ -43,6 +43,36 @@ describe("resolveExchange", () => {
       countryCode: "US",
       confidence: "alias",
     });
+
+    expect(
+      resolveExchange(
+        "NASDAQ Global Select Market",
+      ),
+    ).toEqual({
+      exchangeId: "nasdaq",
+      countryCode: "US",
+      confidence: "alias",
+    });
+
+    expect(
+      resolveExchange("New York Stock Exchange"),
+    ).toEqual({
+      exchangeId: "nyse",
+      countryCode: "US",
+      confidence: "alias",
+    });
+  });
+
+  it("resolves exchange names that contain a known provider alias", () => {
+    expect(
+      resolveExchange(
+        "NASDAQ Global Select Market (US)",
+      ),
+    ).toEqual({
+      exchangeId: "nasdaq",
+      countryCode: "US",
+      confidence: "alias",
+    });
   });
 
   it("returns unknown for an unsupported exchange", () => {
