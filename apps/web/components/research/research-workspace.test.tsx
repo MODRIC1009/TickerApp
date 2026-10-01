@@ -20,62 +20,13 @@ import {
   ResearchWorkspace,
 } from "./research-workspace";
 
-import type {
-  ResearchResult,
-} from "@tickerapp/ai";
-
-const researchResult: ResearchResult = {
-  instrument: {
-    symbol: "AAPL",
-    name: "Apple Inc.",
-    exchangeId: "NASDAQ",
-    countryCode: "US",
-    currency: "USD",
-    assetClass: "equity",
-  },
-  generatedAt:
-    "2026-09-06T10:00:00.000Z",
-  providerId: "demo-ai",
-  model:
-    "deterministic-research-v1",
-  thesis:
-    "Balanced research thesis for Apple.",
-  bullCase: [
-    "Strong growth.",
-  ],
-  bearCase: [
-    "Valuation risk.",
-  ],
-  catalysts: [
-    "Upcoming earnings.",
-  ],
-  risks: [
-    "Market risk.",
-  ],
-  sections: [
-    {
-      title:
-        "Financial Quality",
-      summary:
-        "Financial quality overview.",
-      keyPoints: [
-        "Review fundamentals.",
-      ],
-    },
-  ],
-  evidence: [
-    {
-      source:
-        "TickerApp supplied market data",
-      claim:
-        "Supplied data was used.",
-      relevance: "high",
-    },
-  ],
-  confidence: "low",
-  limitations: [
-    "Demo provider limitation.",
-  ],
+const instrument = {
+  symbol: "AAPL",
+  name: "Apple Inc.",
+  exchangeId: "NASDAQ",
+  countryCode: "US",
+  currency: "USD",
+  assetClass: "equity" as const,
 };
 
 afterEach(() => {
@@ -83,234 +34,157 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-describe(
-  "ResearchWorkspace",
-  () => {
-    it("renders the initial research workspace", () => {
-      render(
-        <ResearchWorkspace />,
-      );
+describe("ResearchWorkspace", () => {
+  it("renders the current research terminal", () => {
+    render(<ResearchWorkspace />);
 
-      expect(
-        screen.getByText(
-          "Research the market.",
-        ),
-      ).toBeDefined();
+    expect(
+      screen.getByText("Research a security"),
+    ).toBeDefined();
 
-      expect(
-        screen.getByText(
-          "Your research workspace is ready.",
-        ),
-      ).toBeDefined();
+    expect(
+      screen.getByText("Research terminal ready"),
+    ).toBeDefined();
 
-      expect(
-        screen.getByDisplayValue(
-          "AAPL",
-        ),
-      ).toBeDefined();
+    expect(
+      screen.getByDisplayValue("AAPL"),
+    ).toBeDefined();
 
-      expect(
-        screen.getByDisplayValue(
-          "Give me a balanced fundamental and risk overview.",
-        ),
-      ).toBeDefined();
-    });
+    expect(
+      screen.getByRole("button", {
+        name: "Research security",
+      }),
+    ).toBeDefined();
+  });
 
-    it("submits a research request and renders the result", async () => {
-      const fetchMock =
-        vi
-          .spyOn(
-            globalThis,
-            "fetch",
-          )
-          .mockResolvedValue(
-            new Response(
-              JSON.stringify({
-                data:
-                  researchResult,
-              }),
-              {
-                status: 200,
-                headers: {
-                  "content-type":
-                    "application/json",
-                },
-              },
-            ),
-          );
-
-      render(
-        <ResearchWorkspace />,
-      );
-
-      fireEvent.click(
-        screen.getByRole(
-          "button",
-          {
-            name: "Run AI Research",
-          },
-        ),
-      );
-
-      await waitFor(() => {
-        expect(
-          screen.getByText(
-            "Balanced research thesis for Apple.",
-          ),
-        ).toBeDefined();
-      });
-
-      expect(
-        screen.getByText(
-          "Bull Case",
-        ),
-      ).toBeDefined();
-
-      expect(
-        screen.getByText(
-          "Bear Case",
-        ),
-      ).toBeDefined();
-
-      expect(
-        screen.getByText(
-          "Demo provider limitation.",
-        ),
-      ).toBeDefined();
-
-      expect(
-        fetchMock,
-      ).toHaveBeenCalledTimes(1);
-    });
-
-    it("shows a loading state while research is running", async () => {
-      let resolveRequest:
-        | ((response: Response) => void)
-        | undefined;
-
-      vi
-        .spyOn(
-          globalThis,
-          "fetch",
-        )
-        .mockImplementation(
-          () =>
-            new Promise(
-              (resolve) => {
-                resolveRequest =
-                  resolve;
-              },
-            ),
-        );
-
-      render(
-        <ResearchWorkspace />,
-      );
-
-      fireEvent.click(
-        screen.getByRole(
-          "button",
-          {
-            name: "Run AI Research",
-          },
-        ),
-      );
-
-      expect(
-        screen.getByText(
-          "Generating research...",
-        ),
-      ).toBeDefined();
-
-      resolveRequest?.(
+  it("loads the selected security and renders its identity", async () => {
+    const fetchMock = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(
         new Response(
           JSON.stringify({
-            data:
-              researchResult,
+            instrument,
           }),
           {
             status: 200,
-          },
-        ),
-      );
-
-      await waitFor(() => {
-        expect(
-          screen.getByText(
-            "Balanced research thesis for Apple.",
-          ),
-        ).toBeDefined();
-      });
-    });
-
-    it("shows an API error", async () => {
-      vi
-        .spyOn(
-          globalThis,
-          "fetch",
-        )
-        .mockResolvedValue(
-          new Response(
-            JSON.stringify({
-              error:
-                "AI provider is unavailable.",
-              code:
-                "provider_unavailable",
-              providerId:
-                "openai-compatible",
-            }),
-            {
-              status: 502,
+            headers: {
+              "content-type": "application/json",
             },
-          ),
-        );
-
-      render(
-        <ResearchWorkspace />,
-      );
-
-      fireEvent.click(
-        screen.getByRole(
-          "button",
-          {
-            name: "Run AI Research",
           },
         ),
       );
 
-      await waitFor(() => {
-        expect(
-          screen.getByText(
-            "AI provider is unavailable.",
-          ),
-        ).toBeDefined();
-      });
-    });
+    render(<ResearchWorkspace />);
 
-    it("updates the research question from a quick question", () => {
-      render(
-        <ResearchWorkspace />,
-      );
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Research security",
+      }),
+    );
 
-      const question =
-        screen.getByLabelText(
-          "Research Question",
-        ) as HTMLTextAreaElement;
-
-      fireEvent.click(
-        screen.getByRole(
-          "button",
-          {
-            name: "What are the main bull and bear cases?",
-          },
-        ),
-      );
-
+    await waitFor(() => {
       expect(
-        question.value,
-      ).toBe(
-        "What are the main bull and bear cases?",
-      );
+        screen.getByText("Apple Inc."),
+      ).toBeDefined();
     });
-  },
-);
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/market-data/instrument?symbol=AAPL",
+      expect.objectContaining({
+        cache: "no-store",
+      }),
+    );
+  });
+
+  it("shows a loading state while the security lookup is running", () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(
+      () => new Promise<Response>(() => undefined),
+    );
+
+    render(<ResearchWorkspace />);
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Research security",
+      }),
+    );
+
+    expect(
+      screen.getByText("Loading"),
+    ).toBeDefined();
+  });
+
+  it("shows an API error when the security lookup fails", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          error: "Instrument not found.",
+        }),
+        {
+          status: 404,
+          headers: {
+            "content-type": "application/json",
+          },
+        },
+      ),
+    );
+
+    render(<ResearchWorkspace />);
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Research security",
+      }),
+    );
+
+    await waitFor(() => {
+      expect(
+        screen.getByText("Instrument not found."),
+      ).toBeDefined();
+    });
+
+    expect(
+      screen.getByRole("alert"),
+    ).toBeDefined();
+  });
+
+  it("loads a security from a quick research symbol", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          instrument: {
+            ...instrument,
+            symbol: "NVDA",
+            name: "NVIDIA Corporation",
+            exchangeId: "NASDAQ",
+          },
+        }),
+        {
+          status: 200,
+          headers: {
+            "content-type": "application/json",
+          },
+        },
+      ),
+    );
+
+    render(<ResearchWorkspace />);
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "NVDA",
+      }),
+    );
+
+    await waitFor(() => {
+      expect(
+        screen.getByText("NVIDIA Corporation"),
+      ).toBeDefined();
+    });
+
+    expect(
+      screen.getByDisplayValue("NVDA"),
+    ).toBeDefined();
+  });
+});
