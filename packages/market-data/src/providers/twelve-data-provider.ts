@@ -16,6 +16,7 @@ import { MarketDataError } from "../errors";
 import {
   normalizeProviderInstrument,
 } from "../instrument-normalizer";
+import { GLOBAL_INSTRUMENTS } from "../instrument-catalog";
 
 interface TwelveDataResponse {
   status?: string;
@@ -299,24 +300,52 @@ export class TwelveDataProvider
     );
 
     const seen = new Set<string>();
+    const normalizedResults =
+      results.filter((result) => {
+        const instrument = result.instrument;
+        const key = [
+          instrument.symbol,
+          instrument.exchangeId,
+          instrument.countryCode,
+          instrument.currency,
+          instrument.assetClass,
+        ].join("|");
 
-    return results.filter((result) => {
-      const instrument = result.instrument;
-      const key = [
-        instrument.symbol,
-        instrument.exchangeId,
-        instrument.countryCode,
-        instrument.currency,
-        instrument.assetClass,
-      ].join("|");
+        if (seen.has(key)) {
+          return false;
+        }
 
-      if (seen.has(key)) {
-        return false;
-      }
+        seen.add(key);
+        return true;
+      });
 
-      seen.add(key);
-      return true;
-    });
+    if (normalizedResults.length > 0) {
+      return normalizedResults;
+    }
+
+    // Keep instrument discovery useful when the provider's discovery endpoint
+    // returns an empty result. This catalog is only a discovery fallback;
+    // quotes and historical prices still come exclusively from Twelve Data.
+    const catalogQuery =
+      normalizedQuery.toLowerCase();
+
+    return GLOBAL_INSTRUMENTS
+      .filter((instrument) =>
+        instrument.symbol
+          .toLowerCase()
+          .includes(catalogQuery) ||
+        instrument.name
+          .toLowerCase()
+          .includes(catalogQuery),
+      )
+      .map((instrument) => ({
+        instrument,
+        score:
+          instrument.symbol.toLowerCase() ===
+          catalogQuery
+            ? 1
+            : 0.5,
+      }));
   }
 
   async getInstrument(
