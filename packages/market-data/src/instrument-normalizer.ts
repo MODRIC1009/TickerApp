@@ -27,14 +27,13 @@ const countryAliases: Record<string, string> = {
   JAPAN: "JP",
   HONGKONG: "HK",
   CHINA: "CN",
-  SOUTH KOREA: "KR",
+  SOUTHKOREA: "KR",
   KOREA: "KR",
   TAIWAN: "TW",
   SINGAPORE: "SG",
   AUSTRALIA: "AU",
   BRAZIL: "BR",
   MEXICO: "MX",
-  "SOUTH AFRICA": "ZA",
   SOUTHAFRICA: "ZA",
 };
 
