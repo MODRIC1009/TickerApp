@@ -55,7 +55,11 @@ function searchGlobalCatalog(
         instrument.symbol.toLowerCase() ===
         normalizedQuery
           ? 1
-          : 0.5,
+          : instrument.symbol
+              .toLowerCase()
+              .startsWith(normalizedQuery)
+            ? 0.9
+            : 0.5,
     }));
 }
 
@@ -64,23 +68,25 @@ function trimSearchResults<T extends { instrument: { symbol: string; exchangeId:
 ): T[] {
   const seen = new Set<string>();
 
-  return results.filter((result) => {
-    const instrument = result.instrument;
-    const key = [
-      instrument.symbol,
-      instrument.exchangeId,
-      instrument.countryCode,
-      instrument.currency,
-      instrument.assetClass,
-    ].join("|");
+  return results
+    .filter((result) => {
+      const instrument = result.instrument;
+      const key = [
+        instrument.symbol,
+        instrument.exchangeId,
+        instrument.countryCode,
+        instrument.currency,
+        instrument.assetClass,
+      ].join("|");
 
-    if (seen.has(key)) {
-      return false;
-    }
+      if (seen.has(key)) {
+        return false;
+      }
 
-    seen.add(key);
-    return true;
-  }).slice(0, MAX_RESULTS);
+      seen.add(key);
+      return true;
+    })
+    .slice(0, MAX_RESULTS);
 }
 
 function mergeSearchResults<
@@ -101,6 +107,33 @@ function mergeSearchResults<
     ...providerResults,
     ...catalogResults,
   ]);
+}
+
+function cacheAndRespond(
+  cacheKey: string,
+  results: Awaited<
+    ReturnType<
+      ReturnType<typeof getMarketDataService>["searchInstruments"]
+    >
+  >,
+  extraHeaders: Record<string, string> = {},
+) {
+  searchCache.set(cacheKey, {
+    results,
+    expiresAt:
+      Date.now() + SEARCH_CACHE_TTL_MS,
+  });
+
+  return NextResponse.json(
+    { results },
+    {
+      headers: {
+        "Cache-Control":
+          "public, max-age=30, stale-while-revalidate=60",
+        ...extraHeaders,
+      },
+    },
+  );
 }
 
 export async function GET(
@@ -155,6 +188,24 @@ export async function GET(
       );
     }
 
+    // The canonical catalog is local, deterministic, and does not consume
+    // provider quota. Return known instruments immediately instead of waiting
+    // for a remote provider search that may be slow or rate-limited.
+    const catalogResults = trimSearchResults(
+      searchGlobalCatalog(query),
+    );
+
+    if (catalogResults.length > 0) {
+      return cacheAndRespond(
+        cacheKey,
+        catalogResults,
+        {
+          "X-TickerApp-Search-Source":
+            "catalog",
+        },
+      );
+    }
+
     const existingRequest =
       inFlightSearches.get(cacheKey);
 
@@ -175,56 +226,32 @@ export async function GET(
       const rawResults =
         await searchRequest;
 
-      // Provider discovery is preferred, but the canonical catalog is always
-      // merged into discovery. This makes search resilient to provider-side
-      // symbol-search gaps without inventing quotes or historical prices.
+      // Provider discovery is used for symbols that are not present in the
+      // canonical catalog. Catalog metadata is still merged in so newly added
+      // catalog entries remain first-class search results.
       const results = mergeSearchResults(
         rawResults,
-        searchGlobalCatalog(query),
+        catalogResults,
       );
 
-      searchCache.set(cacheKey, {
+      return cacheAndRespond(
+        cacheKey,
         results,
-        expiresAt:
-          Date.now() + SEARCH_CACHE_TTL_MS,
-      });
-
-      return NextResponse.json(
-        { results },
         {
-          headers: {
-            "Cache-Control":
-              "public, max-age=30, stale-while-revalidate=60",
-          },
+          "X-TickerApp-Search-Source":
+            "provider",
         },
       );
     } catch (error) {
-      // Discovery remains useful even when the live provider is unavailable or
-      // rate-limited. The returned instruments are catalog metadata only;
-      // quote and historical-data requests still go through the provider.
-      const catalogResults =
-        searchGlobalCatalog(query);
-
+      // A provider failure must not turn a known catalog query into an error.
+      // This branch is primarily for symbols outside the local catalog.
       if (catalogResults.length > 0) {
-        const results = trimSearchResults(
+        return cacheAndRespond(
+          cacheKey,
           catalogResults,
-        );
-
-        searchCache.set(cacheKey, {
-          results,
-          expiresAt:
-            Date.now() + SEARCH_CACHE_TTL_MS,
-        });
-
-        return NextResponse.json(
-          { results },
           {
-            headers: {
-              "Cache-Control":
-                "public, max-age=30, stale-while-revalidate=60",
-              "X-TickerApp-Search-Source":
-                "catalog-fallback",
-            },
+            "X-TickerApp-Search-Source":
+              "catalog-fallback",
           },
         );
       }
