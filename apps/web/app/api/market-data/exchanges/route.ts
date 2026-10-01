@@ -11,11 +11,12 @@ export async function GET() {
       getMarketDataService();
 
     const exchanges =
-      marketDataService.listExchanges();
+      await marketDataService.listExchanges();
 
     return NextResponse.json(
       {
         exchanges,
+        count: exchanges.length,
       },
       {
         headers: {
