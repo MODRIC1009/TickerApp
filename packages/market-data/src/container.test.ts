@@ -23,10 +23,10 @@ describe("createMarketDataService", () => {
   it("rejects an unregistered configured provider", () => {
     expect(() =>
       createMarketDataService({
-        defaultProviderId: "twelve-data",
+        defaultProviderId: "missing-provider",
       }),
     ).toThrow(
-      'Configured market data provider "twelve-data" is not registered.',
+      'Configured market data provider "missing-provider" is not registered.',
     );
   });
 });
