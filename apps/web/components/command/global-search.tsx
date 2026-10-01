@@ -21,6 +21,11 @@ type SearchResponse = {
   error?: string;
 };
 
+const SEARCH_CACHE = new Map<
+  string,
+  SearchInstrument[]
+>();
+
 function getAssetClassLabel(
   assetClass: string,
 ): string {
@@ -69,7 +74,20 @@ export function GlobalSearch() {
       return;
     }
 
+    const cacheKey = trimmed.toLowerCase();
+    const cached = SEARCH_CACHE.get(cacheKey);
+
+    if (cached) {
+      setResults(cached);
+      setLoading(false);
+      setError(null);
+      setOpen(true);
+      return;
+    }
+
     let cancelled = false;
+    const controller =
+      new AbortController();
 
     const timeout =
       window.setTimeout(
@@ -85,6 +103,7 @@ export function GlobalSearch() {
                 )}`,
                 {
                   cache: "no-store",
+                  signal: controller.signal,
                 },
               );
 
@@ -98,13 +117,27 @@ export function GlobalSearch() {
               );
             }
 
+            const nextResults =
+              payload.results ?? [];
+
+            SEARCH_CACHE.set(
+              cacheKey,
+              nextResults,
+            );
+
             if (!cancelled) {
-              setResults(
-                payload.results ?? [],
-              );
+              setResults(nextResults);
               setOpen(true);
             }
           } catch (searchError) {
+            if (
+              cancelled ||
+              (searchError instanceof DOMException &&
+                searchError.name === "AbortError")
+            ) {
+              return;
+            }
+
             if (!cancelled) {
               setResults([]);
               setError(
@@ -120,11 +153,12 @@ export function GlobalSearch() {
             }
           }
         },
-        250,
+        300,
       );
 
     return () => {
       cancelled = true;
+      controller.abort();
       window.clearTimeout(timeout);
     };
   }, [query]);
@@ -412,68 +446,84 @@ export function GlobalSearch() {
           ) : (
             <div className="max-h-[min(32rem,70vh)] overflow-y-auto p-2">
               {results.map(
-                (instrument) => (
-                  <Link
-                    key={`${instrument.symbol}-${instrument.exchangeId}-${instrument.countryCode}`}
-                    href={`/stocks/${encodeURIComponent(
-                      instrument.symbol,
-                    )}`}
-                    role="option"
-                    aria-selected="false"
-                    onClick={() => {
-                      setOpen(false);
-                    }}
-                    className="group relative flex items-center justify-between gap-4 overflow-hidden rounded-xl px-3 py-3 transition-all duration-150 hover:bg-surface-hover focus-visible:bg-surface-hover focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent/40"
-                  >
-                    <span
-                      aria-hidden="true"
-                      className="absolute inset-y-2 left-0 w-px scale-y-0 rounded-full bg-accent transition-transform duration-200 group-hover:scale-y-100"
-                    />
+                (instrument, index) => {
+                  const exchangeLabel =
+                    instrument.exchangeId ===
+                    "unknown"
+                      ? "Exchange unavailable"
+                      : instrument.exchangeId;
 
-                    <div className="flex min-w-0 items-center gap-3">
-                      <div className="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-border-subtle bg-background/50 font-mono text-[9px] font-semibold text-muted transition-colors group-hover:border-accent/20 group-hover:text-accent">
-                        <span
-                          aria-hidden="true"
-                          className="absolute right-1 top-1 h-1 w-1 rounded-full bg-accent/60 opacity-0 transition-opacity group-hover:opacity-100"
-                        />
+                  const countryLabel =
+                    instrument.countryCode ||
+                    "—";
 
-                        {getInstrumentInitials(
-                          instrument.symbol,
-                        )}
-                      </div>
+                  const currencyLabel =
+                    instrument.currency ||
+                    "—";
 
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-2">
-                          <span className="font-mono text-sm font-semibold text-foreground">
-                            {instrument.symbol}
-                          </span>
+                  return (
+                    <Link
+                      key={`${instrument.symbol}-${instrument.exchangeId}-${instrument.countryCode}-${index}`}
+                      href={`/stocks/${encodeURIComponent(
+                        instrument.symbol,
+                      )}`}
+                      role="option"
+                      aria-selected="false"
+                      onClick={() => {
+                        setOpen(false);
+                      }}
+                      className="group relative flex items-center justify-between gap-4 overflow-hidden rounded-xl px-3 py-3 transition-all duration-150 hover:bg-surface-hover focus-visible:bg-surface-hover focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent/40"
+                    >
+                      <span
+                        aria-hidden="true"
+                        className="absolute inset-y-2 left-0 w-px scale-y-0 rounded-full bg-accent transition-transform duration-200 group-hover:scale-y-100"
+                      />
 
-                          <span className="rounded-md border border-border-subtle bg-background/30 px-1.5 py-0.5 text-[8px] font-medium uppercase tracking-[0.08em] text-muted">
-                            {getAssetClassLabel(
-                              instrument.assetClass,
-                            )}
-                          </span>
+                      <div className="flex min-w-0 items-center gap-3">
+                        <div className="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-border-subtle bg-background/50 font-mono text-[9px] font-semibold text-muted transition-colors group-hover:border-accent/20 group-hover:text-accent">
+                          <span
+                            aria-hidden="true"
+                            className="absolute right-1 top-1 h-1 w-1 rounded-full bg-accent/60 opacity-0 transition-opacity group-hover:opacity-100"
+                          />
+
+                          {getInstrumentInitials(
+                            instrument.symbol,
+                          )}
                         </div>
 
-                        <p className="mt-0.5 truncate text-[11px] text-muted">
-                          {instrument.name}
-                        </p>
-                      </div>
-                    </div>
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="font-mono text-sm font-semibold text-foreground">
+                              {instrument.symbol}
+                            </span>
 
-                    <div className="shrink-0 text-right">
-                      <div className="font-mono text-[10px] font-medium text-foreground">
-                        {instrument.exchangeId}
+                            <span className="rounded-md border border-border-subtle bg-background/30 px-1.5 py-0.5 text-[8px] font-medium uppercase tracking-[0.08em] text-muted">
+                              {getAssetClassLabel(
+                                instrument.assetClass,
+                              )}
+                            </span>
+                          </div>
+
+                          <p className="mt-0.5 truncate text-[11px] text-muted">
+                            {instrument.name}
+                          </p>
+                        </div>
                       </div>
 
-                      <div className="mt-1 text-[9px] uppercase tracking-[0.08em] text-muted">
-                        {instrument.countryCode}
-                        {" · "}
-                        {instrument.currency}
+                      <div className="shrink-0 text-right">
+                        <div className="font-mono text-[10px] font-medium text-foreground">
+                          {exchangeLabel}
+                        </div>
+
+                        <div className="mt-1 text-[9px] uppercase tracking-[0.08em] text-muted">
+                          {countryLabel}
+                          {" · "}
+                          {currencyLabel}
+                        </div>
                       </div>
-                    </div>
-                  </Link>
-                ),
+                    </Link>
+                  );
+                },
               )}
             </div>
           )}
