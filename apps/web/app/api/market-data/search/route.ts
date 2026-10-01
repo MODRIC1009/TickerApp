@@ -5,6 +5,8 @@ import {
 } from "@/lib/market-data-api";
 import { getMarketDataService } from "@/lib/market-data";
 
+const MAX_RESULTS = 12;
+
 export async function GET(
   request: NextRequest,
 ) {
@@ -42,16 +44,58 @@ export async function GET(
     const marketDataService =
       getMarketDataService();
 
-    const results =
+    const searchResults =
       await marketDataService.searchInstruments(
         query,
       );
 
+    const uniqueBySymbol =
+      new Map<
+        string,
+        (typeof searchResults)[number]
+      >();
+
+    for (const result of searchResults) {
+      const symbol =
+        result.instrument.symbol
+          .trim()
+          .toUpperCase();
+
+      if (!symbol) {
+        continue;
+      }
+
+      const existing =
+        uniqueBySymbol.get(symbol);
+
+      if (
+        !existing ||
+        (result.score ?? 0) >
+          (existing.score ?? 0)
+      ) {
+        uniqueBySymbol.set(
+          symbol,
+          result,
+        );
+      }
+
+      if (
+        uniqueBySymbol.size >=
+        MAX_RESULTS
+      ) {
+        break;
+      }
+    }
+
+    const results = Array.from(
+      uniqueBySymbol.values(),
+    ).map(
+      ({ instrument }) => instrument,
+    );
+
     return NextResponse.json(
       {
-        results: results.map(
-          ({ instrument }) => instrument,
-        ),
+        results,
       },
       {
         headers: {
