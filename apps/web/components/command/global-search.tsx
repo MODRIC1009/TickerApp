@@ -44,20 +44,94 @@ function getInstrumentInitials(
   return symbol.slice(0, 2).toUpperCase();
 }
 
+function normalizeSearchResults(
+  results: unknown,
+): SearchInstrument[] {
+  if (!Array.isArray(results)) {
+    return [];
+  }
+
+  const seen = new Set<string>();
+
+  return results.filter((candidate): candidate is SearchInstrument => {
+    if (!candidate || typeof candidate !== "object") {
+      return false;
+    }
+
+    const instrument = candidate as Partial<SearchInstrument>;
+
+    if (
+      typeof instrument.symbol !== "string" ||
+      typeof instrument.name !== "string"
+    ) {
+      return false;
+    }
+
+    const normalized: SearchInstrument = {
+      symbol: instrument.symbol.trim().toUpperCase(),
+      name: instrument.name.trim() || instrument.symbol.trim().toUpperCase(),
+      exchangeId:
+        typeof instrument.exchangeId === "string"
+          ? instrument.exchangeId.trim()
+          : "",
+      countryCode:
+        typeof instrument.countryCode === "string"
+          ? instrument.countryCode.trim().toUpperCase()
+          : "",
+      currency:
+        typeof instrument.currency === "string"
+          ? instrument.currency.trim().toUpperCase()
+          : "",
+      assetClass:
+        typeof instrument.assetClass === "string"
+          ? instrument.assetClass.trim().toLowerCase()
+          : "equity",
+    };
+
+    if (!normalized.symbol) {
+      return false;
+    }
+
+    const key = [
+      normalized.symbol,
+      normalized.exchangeId.toLowerCase(),
+      normalized.countryCode,
+      normalized.currency,
+      normalized.assetClass,
+      normalized.name.toLowerCase(),
+    ].join("|");
+
+    if (seen.has(key)) {
+      return false;
+    }
+
+    seen.add(key);
+    return true;
+  });
+}
+
+function getExchangeLabel(
+  exchangeId: string,
+): string {
+  return exchangeId && exchangeId !== "unknown"
+    ? exchangeId
+    : "Exchange unavailable";
+}
+
+function getCountryLabel(
+  countryCode: string,
+): string {
+  return countryCode || "—";
+}
+
 export function GlobalSearch() {
   const [query, setQuery] = useState("");
-  const [results, setResults] = useState<
-    SearchInstrument[]
-  >([]);
-  const [loading, setLoading] =
-    useState(false);
-  const [open, setOpen] =
-    useState(false);
-  const [error, setError] =
-    useState<string | null>(null);
+  const [results, setResults] = useState<SearchInstrument[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [open, setOpen] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const containerRef =
-    useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const trimmed = query.trim();
@@ -69,112 +143,96 @@ export function GlobalSearch() {
       return;
     }
 
+    const controller = new AbortController();
     let cancelled = false;
 
-    const timeout =
-      window.setTimeout(
-        async () => {
-          try {
-            setLoading(true);
-            setError(null);
+    const timeout = window.setTimeout(async () => {
+      try {
+        setLoading(true);
+        setError(null);
 
-            const response =
-              await fetch(
-                `/api/market-data/search?q=${encodeURIComponent(
-                  trimmed,
-                )}`,
-                {
-                  cache: "no-store",
-                },
-              );
+        const response = await fetch(
+          `/api/market-data/search?q=${encodeURIComponent(trimmed)}`,
+          {
+            cache: "no-store",
+            signal: controller.signal,
+          },
+        );
 
-            const payload =
-              (await response.json()) as SearchResponse;
+        const payload = (await response.json()) as SearchResponse;
 
-            if (!response.ok) {
-              throw new Error(
-                payload.error ??
-                  "Search failed.",
-              );
-            }
+        if (!response.ok) {
+          throw new Error(
+            payload.error ?? "Search failed.",
+          );
+        }
 
-            if (!cancelled) {
-              setResults(
-                payload.results ?? [],
-              );
-              setOpen(true);
-            }
-          } catch (searchError) {
-            if (!cancelled) {
-              setResults([]);
-              setError(
-                searchError instanceof Error
-                  ? searchError.message
-                  : "Search failed.",
-              );
-              setOpen(true);
-            }
-          } finally {
-            if (!cancelled) {
-              setLoading(false);
-            }
-          }
-        },
-        250,
-      );
+        if (!cancelled) {
+          setResults(
+            normalizeSearchResults(payload.results),
+          );
+          setOpen(true);
+        }
+      } catch (searchError) {
+        if (
+          cancelled ||
+          (searchError instanceof DOMException &&
+            searchError.name === "AbortError")
+        ) {
+          return;
+        }
+
+        if (!cancelled) {
+          setResults([]);
+          setError(
+            searchError instanceof Error
+              ? searchError.message
+              : "Search failed.",
+          );
+          setOpen(true);
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
+    }, 300);
 
     return () => {
       cancelled = true;
+      controller.abort();
       window.clearTimeout(timeout);
     };
   }, [query]);
 
   useEffect(() => {
-    function handleOutsideClick(
-      event: MouseEvent,
-    ) {
+    function handleOutsideClick(event: MouseEvent) {
       if (
         containerRef.current &&
-        !containerRef.current.contains(
-          event.target as Node,
-        )
+        !containerRef.current.contains(event.target as Node)
       ) {
         setOpen(false);
       }
     }
 
-    document.addEventListener(
-      "mousedown",
-      handleOutsideClick,
-    );
+    document.addEventListener("mousedown", handleOutsideClick);
 
     return () => {
-      document.removeEventListener(
-        "mousedown",
-        handleOutsideClick,
-      );
+      document.removeEventListener("mousedown", handleOutsideClick);
     };
   }, []);
 
   useEffect(() => {
-    function handleEscape(
-      event: KeyboardEvent,
-    ) {
+    function handleEscape(event: KeyboardEvent) {
       if (event.key === "Escape") {
         setOpen(false);
       }
     }
 
-    document.addEventListener(
-      "keydown",
-      handleEscape,
-    );
+    document.addEventListener("keydown", handleEscape);
 
     return () => {
-      document.removeEventListener(
-        "keydown",
-        handleEscape,
-      );
+      document.removeEventListener("keydown", handleEscape);
     };
   }, []);
 
@@ -183,13 +241,9 @@ export function GlobalSearch() {
   ) {
     event.preventDefault();
 
-    const trimmed = query.trim();
-
-    if (!trimmed) {
-      return;
+    if (query.trim()) {
+      setOpen(true);
     }
-
-    setOpen(true);
   }
 
   function handleClear() {
@@ -203,14 +257,8 @@ export function GlobalSearch() {
     open && query.trim().length >= 2;
 
   return (
-    <div
-      ref={containerRef}
-      className="relative w-full"
-    >
-      <form
-        onSubmit={handleSubmit}
-        role="search"
-      >
+    <div ref={containerRef} className="relative w-full">
+      <form onSubmit={handleSubmit} role="search">
         <label
           htmlFor="global-stock-search"
           className="sr-only"
@@ -227,11 +275,7 @@ export function GlobalSearch() {
             stroke="currentColor"
             strokeWidth="1.7"
           >
-            <circle
-              cx="11"
-              cy="11"
-              r="7"
-            />
+            <circle cx="11" cy="11" r="7" />
             <path d="m20 20-4-4" />
           </svg>
 
@@ -244,9 +288,7 @@ export function GlobalSearch() {
               setOpen(true);
             }}
             onFocus={() => {
-              if (
-                query.trim().length >= 2
-              ) {
+              if (query.trim().length >= 2) {
                 setOpen(true);
               }
             }}
@@ -305,7 +347,6 @@ export function GlobalSearch() {
           <div className="relative flex items-center justify-between border-b border-border-subtle px-4 py-3">
             <div className="flex items-center gap-2">
               <span className="h-1.5 w-1.5 rounded-full bg-accent shadow-[0_0_8px_rgba(53,208,127,0.45)]" />
-
               <span className="text-[9px] font-semibold uppercase tracking-[0.16em] text-muted">
                 Instrument search
               </span>
@@ -314,11 +355,7 @@ export function GlobalSearch() {
             <span className="font-mono text-[9px] text-muted">
               {loading
                 ? "Querying..."
-                : `${results.length} result${
-                    results.length === 1
-                      ? ""
-                      : "s"
-                  }`}
+                : `${results.length} result${results.length === 1 ? "" : "s"}`}
             </span>
           </div>
 
@@ -342,24 +379,9 @@ export function GlobalSearch() {
               <p className="mt-3 text-sm font-medium text-foreground">
                 Search unavailable
               </p>
-
               <p className="mx-auto mt-1 max-w-sm text-xs leading-5 text-muted">
                 {error}
               </p>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setError(null);
-                  setQuery(
-                    (current) =>
-                      current.trim(),
-                  );
-                }}
-                className="mt-4 rounded-lg border border-border-subtle bg-background/50 px-3 py-2 text-[10px] font-medium text-muted transition-colors hover:border-border hover:bg-surface-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60"
-              >
-                Retry search
-              </button>
             </div>
           ) : loading ? (
             <div className="space-y-1 p-2">
@@ -370,13 +392,11 @@ export function GlobalSearch() {
                 >
                   <div className="flex items-center gap-3">
                     <div className="h-9 w-9 animate-pulse rounded-xl bg-surface-hover" />
-
                     <div className="space-y-2">
                       <div className="h-3 w-16 animate-pulse rounded bg-surface-hover" />
                       <div className="h-2.5 w-28 animate-pulse rounded bg-surface-hover" />
                     </div>
                   </div>
-
                   <div className="h-2.5 w-16 animate-pulse rounded bg-surface-hover" />
                 </div>
               ))}
@@ -392,37 +412,38 @@ export function GlobalSearch() {
                   stroke="currentColor"
                   strokeWidth="1.7"
                 >
-                  <circle
-                    cx="11"
-                    cy="11"
-                    r="7"
-                  />
+                  <circle cx="11" cy="11" r="7" />
                   <path d="m20 20-4-4" />
                 </svg>
               </div>
-
               <p className="mt-3 text-sm font-medium text-foreground">
                 No instruments found
               </p>
-
               <p className="mt-1 text-xs leading-5 text-muted">
                 Try a ticker symbol or company name.
               </p>
             </div>
           ) : (
             <div className="max-h-[min(32rem,70vh)] overflow-y-auto p-2">
-              {results.map(
-                (instrument) => (
+              {results.map((instrument) => {
+                const resultKey = [
+                  instrument.symbol,
+                  instrument.exchangeId || "exchange",
+                  instrument.countryCode || "country",
+                  instrument.currency || "currency",
+                  instrument.assetClass || "asset",
+                  instrument.name,
+                ]
+                  .join("-")
+                  .replace(/[^a-zA-Z0-9_-]/g, "_");
+
+                return (
                   <Link
-                    key={`${instrument.symbol}-${instrument.exchangeId}-${instrument.countryCode}`}
-                    href={`/stocks/${encodeURIComponent(
-                      instrument.symbol,
-                    )}`}
+                    key={resultKey}
+                    href={`/stocks/${encodeURIComponent(instrument.symbol)}`}
                     role="option"
                     aria-selected="false"
-                    onClick={() => {
-                      setOpen(false);
-                    }}
+                    onClick={() => setOpen(false)}
                     className="group relative flex items-center justify-between gap-4 overflow-hidden rounded-xl px-3 py-3 transition-all duration-150 hover:bg-surface-hover focus-visible:bg-surface-hover focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent/40"
                   >
                     <span
@@ -436,10 +457,7 @@ export function GlobalSearch() {
                           aria-hidden="true"
                           className="absolute right-1 top-1 h-1 w-1 rounded-full bg-accent/60 opacity-0 transition-opacity group-hover:opacity-100"
                         />
-
-                        {getInstrumentInitials(
-                          instrument.symbol,
-                        )}
+                        {getInstrumentInitials(instrument.symbol)}
                       </div>
 
                       <div className="min-w-0">
@@ -447,14 +465,10 @@ export function GlobalSearch() {
                           <span className="font-mono text-sm font-semibold text-foreground">
                             {instrument.symbol}
                           </span>
-
                           <span className="rounded-md border border-border-subtle bg-background/30 px-1.5 py-0.5 text-[8px] font-medium uppercase tracking-[0.08em] text-muted">
-                            {getAssetClassLabel(
-                              instrument.assetClass,
-                            )}
+                            {getAssetClassLabel(instrument.assetClass)}
                           </span>
                         </div>
-
                         <p className="mt-0.5 truncate text-[11px] text-muted">
                           {instrument.name}
                         </p>
@@ -463,18 +477,17 @@ export function GlobalSearch() {
 
                     <div className="shrink-0 text-right">
                       <div className="font-mono text-[10px] font-medium text-foreground">
-                        {instrument.exchangeId}
+                        {getExchangeLabel(instrument.exchangeId)}
                       </div>
-
                       <div className="mt-1 text-[9px] uppercase tracking-[0.08em] text-muted">
-                        {instrument.countryCode}
+                        {getCountryLabel(instrument.countryCode)}
                         {" · "}
-                        {instrument.currency}
+                        {instrument.currency || "—"}
                       </div>
                     </div>
                   </Link>
-                ),
-              )}
+                );
+              })}
             </div>
           )}
 

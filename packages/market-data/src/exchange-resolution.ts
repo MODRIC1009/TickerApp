@@ -6,6 +6,11 @@ export interface ExchangeResolution {
   confidence: "exact" | "alias" | "unknown";
 }
 
+/**
+ * Provider exchange identifiers are not consistent across vendors. Keep the
+ * canonical application exchange IDs in GLOBAL_EXCHANGES and normalize the
+ * common provider names/MICs into those IDs here.
+ */
 const aliases: Record<string, string> = {
   NASDAQ: "nasdaq",
   NASDAQGS: "nasdaq",
@@ -13,6 +18,11 @@ const aliases: Record<string, string> = {
   NASDAQGM: "nasdaq",
   XNAS: "nasdaq",
   XNGS: "nasdaq",
+  NASDAQGLOBALSELECTMARKET: "nasdaq",
+  NASDAQGLOBALMARKET: "nasdaq",
+  NASDAQCAPITALMARKET: "nasdaq",
+  NASDAQGLOBALSELECT: "nasdaq",
+  NASDAQNGSGLOBALSELECTMARKET: "nasdaq",
 
   NYSE: "nyse",
   XNYS: "nyse",
@@ -28,18 +38,23 @@ const aliases: Record<string, string> = {
 
   EURONEXT: "euronext-paris",
   XPAR: "euronext-paris",
+  EURONEXTPARIS: "euronext-paris",
 
   AMS: "euronext-amsterdam",
   XAMS: "euronext-amsterdam",
+  EURONEXTAMSTERDAM: "euronext-amsterdam",
 
   SIX: "six",
   XSWX: "six",
+  SIXSWISSEXCHANGE: "six",
 
   NSE: "nse",
   XNSE: "nse",
+  NATIONALSTOCKEXCHANGEOFINDIA: "nse",
 
   JPX: "jpx",
   XTKS: "jpx",
+  TOKYOSTOCKEXCHANGE: "jpx",
 
   HKEX: "hkex",
   XHKG: "hkex",
@@ -73,13 +88,19 @@ const aliases: Record<string, string> = {
   XJSE: "jse",
 };
 
+function normalizeExchangeToken(value: string): string {
+  return value
+    .trim()
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, "");
+}
+
 export function resolveExchange(
   providerExchangeId?: string,
 ): ExchangeResolution {
-  const normalized =
-    providerExchangeId?.trim().toUpperCase();
+  const raw = providerExchangeId?.trim();
 
-  if (!normalized) {
+  if (!raw) {
     return {
       exchangeId: "unknown",
       countryCode: "",
@@ -87,9 +108,12 @@ export function resolveExchange(
     };
   }
 
+  const normalized = normalizeExchangeToken(raw);
+
   const exactMatch = GLOBAL_EXCHANGES.find(
     (exchange) =>
-      exchange.id.toUpperCase() === normalized,
+      normalizeExchangeToken(exchange.id) === normalized ||
+      normalizeExchangeToken(exchange.name) === normalized,
   );
 
   if (exactMatch) {

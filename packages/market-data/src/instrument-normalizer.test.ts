@@ -33,12 +33,36 @@ describe("instrument-normalizer", () => {
         source: {
           providerId:
             "twelve-data",
-          providerSymbol: "aapl",
+          providerSymbol:
+            "aapl",
           providerExchangeId:
             "XNAS",
         },
       },
     });
+  });
+
+  it("normalizes Twelve Data country names to ISO codes", () => {
+    const instrument =
+      normalizeProviderInstrument(
+        "twelve-data",
+        {
+          symbol: "NVDA",
+          name: "NVIDIA Corporation",
+          exchange: "NASDAQ GLOBAL SELECT MARKET",
+          countryCode: "United States",
+          currency: "USD",
+          instrumentType:
+            "Common Stock",
+        },
+      );
+
+    expect(
+      instrument.exchangeId,
+    ).toBe("nasdaq");
+    expect(
+      instrument.countryCode,
+    ).toBe("US");
   });
 
   it("prefers MIC code when both MIC and exchange are provided", () => {
