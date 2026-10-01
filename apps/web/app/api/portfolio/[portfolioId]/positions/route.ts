@@ -47,10 +47,50 @@ export async function GET(
       );
     }
 
-    const positions =
-      getPortfolioService().getPositions(portfolioId);
+    const portfolioService =
+      getPortfolioService();
 
-    return NextResponse.json({ positions });
+    const portfolio =
+      portfolioService.getPortfolio(
+        portfolioId,
+      );
+
+    const positions =
+      portfolioService.getPositions(
+        portfolioId,
+      );
+
+    const valuation =
+      await portfolioService.getValuation(
+        portfolioId,
+        new Date().toISOString(),
+      );
+
+    return NextResponse.json(
+      {
+        portfolio,
+        positions,
+        totalMarketValue:
+          valuation.positionsValue,
+        totalCostBasis:
+          valuation.totalCostBasis,
+        totalUnrealizedPnL:
+          valuation.unrealizedPnl,
+        totalUnrealizedPnLPercent:
+          valuation.totalCostBasis === 0
+            ? 0
+            : (valuation.unrealizedPnl /
+                valuation.totalCostBasis) *
+              100,
+        valuation,
+      },
+      {
+        headers: {
+          "Cache-Control":
+            "no-store, max-age=0",
+        },
+      },
+    );
   } catch (error) {
     return NextResponse.json(
       {
