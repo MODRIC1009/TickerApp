@@ -22,7 +22,6 @@ const aliases: Record<string, string> = {
   NASDAQGLOBALMARKET: "nasdaq",
   NASDAQCAPITALMARKET: "nasdaq",
   NASDAQGLOBALSELECT: "nasdaq",
-  NASDAQGLOBALSELECT: "nasdaq",
   NASDAQNGSGLOBALSELECTMARKET: "nasdaq",
 
   NYSE: "nyse",
