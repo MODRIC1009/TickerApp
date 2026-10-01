@@ -1,13 +1,44 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 
 import "./globals.css";
 
 import { AppShell } from "@/components/layout/app-shell";
 
 export const metadata: Metadata = {
-  title: "TickerApp — Equity Intelligence",
+  title: {
+    default: "TickerApp — Global Equity Intelligence",
+    template: "%s — TickerApp",
+  },
   description:
-    "Global equity intelligence, quantitative analytics, portfolio research, and AI-powered market analysis.",
+    "Global equity intelligence, live market data, quantitative risk analytics, portfolio intelligence, and AI-powered research.",
+  applicationName: "TickerApp",
+  keywords: [
+    "equity intelligence",
+    "stock analytics",
+    "market intelligence",
+    "quantitative risk",
+    "portfolio analytics",
+    "AI research",
+    "global markets",
+  ],
+  authors: [
+    {
+      name: "TickerApp",
+    },
+  ],
+  creator: "TickerApp",
+  publisher: "TickerApp",
+  robots: {
+    index: true,
+    follow: true,
+  },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#07090d",
+  colorScheme: "dark",
+  width: "device-width",
+  initialScale: 1,
 };
 
 export default function RootLayout({

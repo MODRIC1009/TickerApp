@@ -1,106 +1,108 @@
 import { describe, expect, it } from "vitest";
 
-import { MarketDataError } from "@tickerapp/market-data";
-
 import {
   getMarketDataErrorStatus,
   marketDataErrorResponse,
 } from "./market-data-api";
 
 describe("market-data-api", () => {
-  it("maps market data errors to HTTP status codes", () => {
-    expect(
-      getMarketDataErrorStatus(
-        new MarketDataError(
-          "invalid_request",
-          "Invalid request.",
+  describe("getMarketDataErrorStatus", () => {
+    it("maps rate-limit errors to HTTP 429", () => {
+      expect(
+        getMarketDataErrorStatus(
+          new Error(
+            "Provider rate limit exceeded.",
+          ),
         ),
-      ),
-    ).toBe(400);
+      ).toBe(429);
+    });
 
-    expect(
-      getMarketDataErrorStatus(
-        new MarketDataError(
-          "not_found",
-          "Not found.",
+    it("maps not-found errors to HTTP 404", () => {
+      expect(
+        getMarketDataErrorStatus(
+          new Error(
+            "Instrument not found.",
+          ),
         ),
-      ),
-    ).toBe(404);
+      ).toBe(404);
+    });
 
-    expect(
-      getMarketDataErrorStatus(
-        new MarketDataError(
-          "rate_limited",
-          "Rate limited.",
+    it("maps validation errors to HTTP 400", () => {
+      expect(
+        getMarketDataErrorStatus(
+          new Error(
+            "A ticker symbol is required.",
+          ),
         ),
-      ),
-    ).toBe(429);
+      ).toBe(400);
+    });
 
-    expect(
-      getMarketDataErrorStatus(
-        new MarketDataError(
-          "unsupported_capability",
-          "Unsupported.",
+    it("maps unavailable and timeout errors to HTTP 503", () => {
+      expect(
+        getMarketDataErrorStatus(
+          new Error(
+            "Provider unavailable.",
+          ),
         ),
-      ),
-    ).toBe(501);
+      ).toBe(503);
 
-    expect(
-      getMarketDataErrorStatus(
-        new MarketDataError(
-          "provider_unavailable",
-          "Unavailable.",
+      expect(
+        getMarketDataErrorStatus(
+          new Error(
+            "Provider request timed out.",
+          ),
         ),
-      ),
-    ).toBe(502);
+      ).toBe(503);
+    });
 
-    expect(
-      getMarketDataErrorStatus(
-        new MarketDataError(
-          "provider_error",
-          "Provider error.",
+    it("maps unknown errors to HTTP 500", () => {
+      expect(
+        getMarketDataErrorStatus(
+          new Error(
+            "Something unexpected happened.",
+          ),
         ),
-      ),
-    ).toBe(502);
-
-    expect(
-      getMarketDataErrorStatus(
-        new Error("Unexpected error."),
-      ),
-    ).toBe(502);
-  });
-
-  it("returns structured error responses", async () => {
-    const response = marketDataErrorResponse(
-      new MarketDataError(
-        "rate_limited",
-        "Provider rate limit reached.",
-        {
-          providerId: "twelve-data",
-        },
-      ),
-      "Fallback message.",
-    );
-
-    expect(response.status).toBe(429);
-
-    expect(await response.json()).toEqual({
-      error: "Provider rate limit reached.",
-      code: "rate_limited",
-      providerId: "twelve-data",
+      ).toBe(500);
     });
   });
 
-  it("uses the fallback message for unknown errors", async () => {
-    const response = marketDataErrorResponse(
-      new Error("Unexpected failure."),
-      "Market data request failed.",
-    );
+  describe("marketDataErrorResponse", () => {
+    it("uses the error message when one is available", async () => {
+      const response =
+        marketDataErrorResponse(
+          new Error(
+            "Market provider failed.",
+          ),
+          "Fallback message.",
+        );
 
-    expect(response.status).toBe(502);
+      expect(response.status).toBe(500);
 
-    expect(await response.json()).toEqual({
-      error: "Market data request failed.",
+      await expect(
+        response.json(),
+      ).resolves.toEqual({
+        error:
+          "Market provider failed.",
+        code: "internal_error",
+      });
+    });
+
+    it("uses the fallback message when the error has no message", async () => {
+      const response =
+        marketDataErrorResponse(
+          {},
+          "Market data request failed.",
+        );
+
+      expect(response.status).toBe(500);
+
+      await expect(
+        response.json(),
+      ).resolves.toEqual({
+        error:
+          "Market data request failed.",
+        code: "internal_error",
+      });
     });
   });
 });

@@ -1,66 +1,64 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 
-import {
-  getMarketSession,
-} from "@tickerapp/market-data";
-import { getMarketDataService } from "@/lib/market-data";
 import {
   marketDataErrorResponse,
 } from "@/lib/market-data-api";
+import { getMarketDataService } from "@/lib/market-data";
 
-export async function GET(request: Request) {
-  const { searchParams } = new URL(request.url);
-
-  const exchangeId = searchParams
-    .get("exchange")
-    ?.trim();
-
-  const providerId =
-    searchParams.get("provider")?.trim() || undefined;
-
-  if (!exchangeId) {
-    return NextResponse.json(
-      {
-        error:
-          "Missing required query parameter: exchange",
-      },
-      { status: 400 },
-    );
-  }
-
+export async function GET(
+  request: NextRequest,
+) {
   try {
-    const exchanges =
-      await getMarketDataService().listExchanges(
-        providerId,
-      );
+    const exchangeId =
+      request.nextUrl.searchParams
+        .get("exchange")
+        ?.trim();
 
-    const exchange = exchanges.find(
-      (item) => item.id === exchangeId,
-    );
+    if (!exchangeId) {
+      return NextResponse.json(
+        {
+          error:
+            "An exchange identifier is required.",
+          code: "invalid_request",
+        },
+        { status: 400 },
+      );
+    }
+
+    const marketDataService =
+      getMarketDataService();
+
+    const exchanges =
+      await marketDataService.listExchanges();
+
+    const exchange =
+      exchanges.find(
+        (item) =>
+          item.id === exchangeId,
+      );
 
     if (!exchange) {
       return NextResponse.json(
-        { error: `Unknown exchange "${exchangeId}".` },
+        {
+          error: `Market exchange "${exchangeId}" was not found.`,
+          code: "not_found",
+        },
         { status: 404 },
       );
     }
 
-    const session = getMarketSession(exchange);
-
-    return NextResponse.json({
-      exchange: {
-        id: exchange.id,
-        name: exchange.name,
-        timezone: exchange.timezone,
+    return NextResponse.json(
+      {
+        exchange,
       },
-      session,
-    });
-  } catch (error) {
-    console.error(
-      "Market session request failed:",
-      error,
+      {
+        headers: {
+          "Cache-Control":
+            "no-store, max-age=0",
+        },
+      },
     );
-
+  } catch (error) {
     return marketDataErrorResponse(
       error,
       "Market session request failed.",

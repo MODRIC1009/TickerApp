@@ -1,56 +1,67 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 
-import { validateSymbol } from "@tickerapp/market-data";
-import { getMarketDataService } from "@/lib/market-data";
 import {
   marketDataErrorResponse,
 } from "@/lib/market-data-api";
+import { getMarketDataService } from "@/lib/market-data";
 
-export async function GET(request: Request) {
-  const { searchParams } = new URL(request.url);
-
-  const rawSymbol = searchParams.get("symbol");
-  const providerId =
-    searchParams.get("provider")?.trim() || undefined;
-
-  if (!rawSymbol) {
-    return NextResponse.json(
-      { error: "Missing required query parameter: symbol" },
-      { status: 400 },
-    );
-  }
-
+export async function GET(
+  request: NextRequest,
+) {
   try {
-    const symbol = validateSymbol(rawSymbol);
+    const symbol =
+      request.nextUrl.searchParams
+        .get("symbol")
+        ?.trim()
+        .toUpperCase();
+
+    if (!symbol) {
+      return NextResponse.json(
+        {
+          error:
+            "A ticker symbol is required.",
+          code: "invalid_request",
+        },
+        { status: 400 },
+      );
+    }
+
     const marketDataService =
       getMarketDataService();
 
     const instrument =
       await marketDataService.getInstrument(
         symbol,
-        providerId,
       );
 
     if (!instrument) {
       return NextResponse.json(
-        { error: `Instrument "${symbol}" not found.` },
+        {
+          error: `Instrument "${symbol}" was not found.`,
+          code: "not_found",
+        },
         { status: 404 },
       );
     }
 
-    return NextResponse.json({
-      instrument,
-      identity:
-        marketDataService.getInstrumentIdentity(
-          instrument,
-        ),
-    });
-  } catch (error) {
-    console.error(
-      "Market instrument lookup failed:",
-      error,
-    );
+    const identity =
+      marketDataService.getInstrumentIdentity(
+        instrument,
+      );
 
+    return NextResponse.json(
+      {
+        instrument,
+        identity,
+      },
+      {
+        headers: {
+          "Cache-Control":
+            "no-store, max-age=0",
+        },
+      },
+    );
+  } catch (error) {
     return marketDataErrorResponse(
       error,
       "Market instrument lookup failed.",

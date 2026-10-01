@@ -1,600 +1,436 @@
 "use client";
 
-import { FormEvent, useState } from "react";
-
-import type {
-  ResearchInput,
-  ResearchResult,
-} from "@tickerapp/ai";
-
 import {
-  AIResearchClientError,
-  runAIResearch,
-} from "../../lib/ai-research-client";
+  useMemo,
+  useState,
+} from "react";
 
-const defaultInstrument: ResearchInput["instrument"] = {
-  symbol: "AAPL",
-  name: "Apple Inc.",
-  exchangeId: "NASDAQ",
-  countryCode: "US",
-  currency: "USD",
-  assetClass: "equity",
-};
+import type { Instrument } from "@tickerapp/shared";
 
-const exampleQuestions = [
-  "Give me a balanced fundamental and risk overview.",
-  "What are the main bull and bear cases?",
-  "What should I monitor over the next few quarters?",
+import { StockResearchPanel } from "./stock-research-panel";
+
+const popularSymbols = [
+  "AAPL",
+  "NVDA",
+  "MSFT",
+  "RELIANCE",
 ];
 
+function assetClassLabel(
+  assetClass: Instrument["assetClass"],
+) {
+  switch (assetClass) {
+    case "equity":
+      return "Equity";
+    case "etf":
+      return "ETF";
+    case "adr":
+      return "ADR";
+    case "reit":
+      return "REIT";
+    case "fund":
+      return "Fund";
+    default:
+      return assetClass;
+  }
+}
+
 export function ResearchWorkspace() {
+  const [symbol, setSymbol] =
+    useState("AAPL");
+
   const [instrument, setInstrument] =
-    useState(defaultInstrument);
-  const [question, setQuestion] =
-    useState(
-      exampleQuestions[0],
-    );
-  const [result, setResult] =
-    useState<ResearchResult | null>(
-      null,
-    );
+    useState<Instrument | null>(null);
+
   const [loading, setLoading] =
     useState(false);
+
   const [error, setError] =
-    useState<string | null>(
-      null,
-    );
+    useState<string | null>(null);
 
-  async function handleSubmit(
-    event: FormEvent<HTMLFormElement>,
+  const normalizedSymbol = useMemo(
+    () => symbol.trim().toUpperCase(),
+    [symbol],
+  );
+
+  async function researchSecurity(
+    requestedSymbol?: string,
   ) {
-    event.preventDefault();
+    const target = (
+      requestedSymbol ??
+      normalizedSymbol
+    )
+      .trim()
+      .toUpperCase();
 
-    setLoading(true);
-    setError(null);
+    if (!target) {
+      setError(
+        "Enter a ticker symbol to begin.",
+      );
+      setInstrument(null);
+      return;
+    }
 
     try {
-      const research =
-        await runAIResearch({
-          instrument,
-          question,
-        });
+      setLoading(true);
+      setError(null);
 
-      setResult(research);
-    } catch (caughtError) {
+      const response = await fetch(
+        `/api/market-data/instrument?symbol=${encodeURIComponent(
+          target,
+        )}`,
+        {
+          cache: "no-store",
+        },
+      );
+
+      const payload =
+        (await response.json()) as {
+          instrument?: Instrument;
+          error?: string;
+        };
+
       if (
-        caughtError instanceof
-        AIResearchClientError
+        !response.ok ||
+        !payload.instrument
       ) {
-        setError(
-          caughtError.message,
-        );
-      } else {
-        setError(
-          "Unable to complete AI research. Please try again.",
+        throw new Error(
+          payload.error ??
+            `Security "${target}" could not be found.`,
         );
       }
+
+      setSymbol(
+        payload.instrument.symbol,
+      );
+
+      setInstrument(
+        payload.instrument,
+      );
+    } catch (requestError) {
+      setInstrument(null);
+
+      setError(
+        requestError instanceof Error
+          ? requestError.message
+          : "Unable to retrieve this security.",
+      );
     } finally {
       setLoading(false);
     }
   }
 
   return (
-    <div className="mx-auto w-full max-w-[1600px] px-4 py-6 sm:px-6 lg:px-8">
-      <section className="mb-6">
-        <p className="text-xs font-medium uppercase tracking-[0.18em] text-accent">
-          AI Research Engine
-        </p>
+    <div className="space-y-6">
+      <section className="glass-panel-elevated relative overflow-hidden rounded-2xl">
+        <div className="spatial-grid pointer-events-none absolute inset-0 opacity-15" />
 
-        <h1 className="mt-2 text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">
-          Research the market.
-        </h1>
+        <div className="pointer-events-none absolute -right-20 -top-20 h-56 w-56 rounded-full bg-accent/5 blur-3xl" />
 
-        <p className="mt-3 max-w-3xl text-sm leading-6 text-muted">
-          Ask a natural-language question about an
-          instrument and receive structured research
-          covering thesis, catalysts, risks, evidence,
-          and uncertainty.
-        </p>
-      </section>
-
-      <div className="grid gap-6 xl:grid-cols-[380px_1fr]">
-        <aside className="h-fit rounded-xl border border-border bg-surface">
-          <div className="border-b border-border px-5 py-4">
-            <h2 className="text-sm font-semibold text-foreground">
-              Research Request
-            </h2>
-
-            <p className="mt-1 text-xs text-muted">
-              Define the company and question.
-            </p>
-          </div>
-
-          <form
-            onSubmit={handleSubmit}
-            className="space-y-5 p-5"
-          >
+        <div className="relative border-b border-border-subtle px-5 py-5 sm:px-6">
+          <div className="flex flex-col justify-between gap-5 lg:flex-row lg:items-end">
             <div>
+              <div className="flex items-center gap-2">
+                <span className="h-1.5 w-1.5 rounded-full bg-accent shadow-[0_0_10px_currentColor]" />
+
+                <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted">
+                  Security Research
+                </p>
+              </div>
+
+              <h2 className="mt-2 text-lg font-semibold tracking-[-0.02em] text-foreground">
+                Research a security
+              </h2>
+
+              <p className="mt-1 max-w-2xl text-xs leading-5 text-muted">
+                Search the global security universe to load market
+                identity, live context, quantitative analysis, and
+                AI-assisted research.
+              </p>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="rounded-full border border-accent/20 bg-accent-muted px-2.5 py-1.5 text-[9px] font-semibold uppercase tracking-[0.12em] text-accent">
+                Intelligence terminal
+              </span>
+
+              <span className="rounded-full border border-border-subtle bg-surface-hover px-2.5 py-1.5 text-[9px] font-medium uppercase tracking-[0.12em] text-muted">
+                Live data
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <div className="relative p-5 sm:p-6">
+          <form
+            onSubmit={(event) => {
+              event.preventDefault();
+              void researchSecurity();
+            }}
+            className="flex flex-col gap-3 sm:flex-row"
+          >
+            <div className="relative min-w-0 flex-1">
               <label
                 htmlFor="research-symbol"
-                className="text-[10px] font-medium uppercase tracking-[0.14em] text-muted"
+                className="sr-only"
               >
-                Symbol
+                Ticker symbol
               </label>
 
-              <input
-                id="research-symbol"
-                value={instrument.symbol}
-                onChange={(event) =>
-                  setInstrument({
-                    ...instrument,
-                    symbol:
+              <div className="relative">
+                <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 font-mono text-xs text-muted">
+                  /
+                </span>
+
+                <input
+                  id="research-symbol"
+                  value={symbol}
+                  onChange={(event) =>
+                    setSymbol(
                       event.target.value.toUpperCase(),
-                  })
-                }
-                className="mt-2 w-full rounded-lg border border-border bg-background px-3 py-2.5 font-mono text-sm text-foreground outline-none transition-colors placeholder:text-muted focus:border-accent"
-                placeholder="AAPL"
-              />
-            </div>
-
-            <div>
-              <label
-                htmlFor="research-company"
-                className="text-[10px] font-medium uppercase tracking-[0.14em] text-muted"
-              >
-                Company
-              </label>
-
-              <input
-                id="research-company"
-                value={instrument.name}
-                onChange={(event) =>
-                  setInstrument({
-                    ...instrument,
-                    name: event.target.value,
-                  })
-                }
-                className="mt-2 w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm text-foreground outline-none transition-colors placeholder:text-muted focus:border-accent"
-                placeholder="Apple Inc."
-              />
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <Field
-                label="Exchange"
-                value={instrument.exchangeId}
-                onChange={(value) =>
-                  setInstrument({
-                    ...instrument,
-                    exchangeId: value,
-                  })
-                }
-              />
-
-              <Field
-                label="Country"
-                value={instrument.countryCode}
-                onChange={(value) =>
-                  setInstrument({
-                    ...instrument,
-                    countryCode: value,
-                  })
-                }
-              />
-
-              <Field
-                label="Currency"
-                value={instrument.currency}
-                onChange={(value) =>
-                  setInstrument({
-                    ...instrument,
-                    currency: value,
-                  })
-                }
-              />
-
-              <Field
-                label="Asset Class"
-                value={instrument.assetClass}
-                onChange={(value) =>
-                  setInstrument({
-                    ...instrument,
-                    assetClass:
-                      value as ResearchInput["instrument"]["assetClass"],
-                  })
-                }
-              />
-            </div>
-
-            <div>
-              <label
-                htmlFor="research-question"
-                className="text-[10px] font-medium uppercase tracking-[0.14em] text-muted"
-              >
-                Research Question
-              </label>
-
-              <textarea
-                id="research-question"
-                value={question}
-                onChange={(event) =>
-                  setQuestion(
-                    event.target.value,
-                  )
-                }
-                rows={6}
-                className="mt-2 w-full resize-none rounded-lg border border-border bg-background px-3 py-2.5 text-sm leading-5 text-foreground outline-none transition-colors placeholder:text-muted focus:border-accent"
-                placeholder="What would you like to research?"
-              />
-            </div>
-
-            <div>
-              <p className="mb-2 text-[10px] font-medium uppercase tracking-[0.14em] text-muted">
-                Quick Questions
-              </p>
-
-              <div className="space-y-2">
-                {exampleQuestions.map(
-                  (example) => (
-                    <button
-                      key={example}
-                      type="button"
-                      onClick={() =>
-                        setQuestion(
-                          example,
-                        )
-                      }
-                      className="w-full rounded-lg border border-border-subtle bg-background/50 px-3 py-2 text-left text-xs leading-5 text-muted-strong transition-colors hover:border-border hover:bg-surface-hover hover:text-foreground"
-                    >
-                      {example}
-                    </button>
-                  ),
-                )}
+                    )
+                  }
+                  placeholder="Enter ticker, e.g. AAPL"
+                  autoComplete="off"
+                  spellCheck={false}
+                  className="h-12 w-full rounded-xl border border-border bg-background pl-8 pr-4 font-mono text-sm text-foreground outline-none transition-all placeholder:text-muted focus:border-accent/50 focus:ring-2 focus:ring-accent/10"
+                />
               </div>
             </div>
-
-            {error && (
-              <div className="rounded-lg border border-negative/30 bg-negative-muted px-3 py-3 text-xs leading-5 text-negative">
-                {error}
-              </div>
-            )}
 
             <button
               type="submit"
               disabled={loading}
-              className="w-full rounded-lg border border-accent/40 bg-accent-muted px-4 py-3 text-sm font-medium text-accent transition-colors hover:border-accent hover:bg-accent/15 disabled:cursor-not-allowed disabled:opacity-50"
+              className="h-12 rounded-xl border border-accent/40 bg-accent-muted px-6 text-sm font-semibold text-accent transition-all hover:border-accent hover:bg-accent/15 disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60"
             >
-              {loading
-                ? "Generating research..."
-                : "Run AI Research"}
+              {loading ? (
+                <span className="flex items-center gap-2">
+                  <span className="h-3 w-3 animate-spin rounded-full border-2 border-accent/30 border-t-accent" />
+                  Loading
+                </span>
+              ) : (
+                "Research security"
+              )}
             </button>
-
-            <p className="text-[10px] leading-4 text-muted">
-              AI-generated research is decision support,
-              not a guarantee of investment outcomes.
-            </p>
           </form>
-        </aside>
 
-        <main>
-          {loading && (
-            <LoadingState />
-          )}
+          <div className="mt-5">
+            <div className="mb-2 flex items-center justify-between gap-4">
+              <p className="text-[9px] font-semibold uppercase tracking-[0.14em] text-muted">
+                Quick research
+              </p>
 
-          {!loading && !result && (
-            <EmptyState />
-          )}
-
-          {!loading && result && (
-            <ResearchResultView
-              result={result}
-            />
-          )}
-        </main>
-      </div>
-    </div>
-  );
-}
-
-function Field({
-  label,
-  value,
-  onChange,
-}: {
-  label: string;
-  value: string;
-  onChange: (value: string) => void;
-}) {
-  return (
-    <div>
-      <label className="text-[10px] font-medium uppercase tracking-[0.14em] text-muted">
-        {label}
-      </label>
-
-      <input
-        value={value}
-        onChange={(event) =>
-          onChange(event.target.value)
-        }
-        className="mt-2 w-full rounded-lg border border-border bg-background px-3 py-2.5 text-xs text-foreground outline-none transition-colors focus:border-accent"
-      />
-    </div>
-  );
-}
-
-function EmptyState() {
-  return (
-    <section className="flex min-h-[620px] items-center justify-center rounded-xl border border-border bg-surface">
-      <div className="max-w-md px-6 text-center">
-        <div className="font-mono text-3xl text-muted">
-          AI
-        </div>
-
-        <h2 className="mt-4 text-lg font-semibold text-foreground">
-          Your research workspace is ready.
-        </h2>
-
-        <p className="mt-2 text-sm leading-6 text-muted">
-          Select an instrument, ask a question, and run
-          the research engine to generate a structured
-          analysis.
-        </p>
-      </div>
-    </section>
-  );
-}
-
-function LoadingState() {
-  return (
-    <section className="rounded-xl border border-border bg-surface p-6">
-      <div className="animate-pulse space-y-5">
-        <div className="h-5 w-48 rounded bg-surface-elevated" />
-        <div className="h-20 rounded bg-surface-elevated" />
-
-        <div className="grid gap-4 md:grid-cols-2">
-          <div className="h-32 rounded bg-surface-elevated" />
-          <div className="h-32 rounded bg-surface-elevated" />
-          <div className="h-32 rounded bg-surface-elevated" />
-          <div className="h-32 rounded bg-surface-elevated" />
-        </div>
-      </div>
-    </section>
-  );
-}
-
-function ResearchResultView({
-  result,
-}: {
-  result: ResearchResult;
-}) {
-  return (
-    <div className="space-y-6">
-      <section className="rounded-xl border border-border bg-surface p-6">
-        <div className="flex flex-col justify-between gap-4 md:flex-row md:items-start">
-          <div>
-            <div className="flex items-center gap-3">
-              <span className="font-mono text-2xl font-semibold text-foreground">
-                {result.instrument.symbol}
-              </span>
-
-              <span className="rounded-md border border-border-subtle bg-background px-2 py-1 text-[10px] uppercase tracking-[0.12em] text-muted">
-                {result.instrument.exchangeId}
-              </span>
+              <p className="hidden text-[9px] uppercase tracking-[0.12em] text-muted sm:block">
+                Select a security
+              </p>
             </div>
 
-            <p className="mt-2 text-sm text-muted-strong">
-              {result.instrument.name}
-            </p>
+            <div className="flex flex-wrap gap-2">
+              {popularSymbols.map(
+                (popularSymbol) => (
+                  <button
+                    key={popularSymbol}
+                    type="button"
+                    onClick={() => {
+                      setSymbol(
+                        popularSymbol,
+                      );
+
+                      void researchSecurity(
+                        popularSymbol,
+                      );
+                    }}
+                    disabled={loading}
+                    className={`group rounded-xl border px-3 py-2 font-mono text-[10px] font-semibold transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60 disabled:cursor-not-allowed disabled:opacity-60 ${
+                      normalizedSymbol ===
+                      popularSymbol
+                        ? "border-accent/30 bg-accent-muted text-accent"
+                        : "border-border-subtle bg-surface-hover text-muted hover:border-border hover:bg-surface hover:text-foreground"
+                    }`}
+                  >
+                    <span className="flex items-center gap-2">
+                      <span
+                        className={`h-1.5 w-1.5 rounded-full transition-colors ${
+                          normalizedSymbol ===
+                          popularSymbol
+                            ? "bg-accent"
+                            : "bg-muted group-hover:bg-foreground"
+                        }`}
+                      />
+
+                      {popularSymbol}
+                    </span>
+                  </button>
+                ),
+              )}
+            </div>
           </div>
 
-          <div className="text-left md:text-right">
-            <p className="text-[10px] uppercase tracking-[0.14em] text-muted">
-              Confidence
-            </p>
+          {instrument ? (
+            <div className="mt-5 flex flex-col gap-3 rounded-xl border border-border-subtle bg-surface-hover p-4 sm:flex-row sm:items-center sm:justify-between">
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="font-mono text-sm font-semibold text-foreground">
+                    {instrument.symbol}
+                  </span>
 
-            <span className="mt-2 inline-flex rounded-md border border-border-subtle bg-background px-2.5 py-1 font-mono text-xs uppercase text-accent">
-              {result.confidence}
-            </span>
-          </div>
-        </div>
+                  <span className="rounded-full border border-border-subtle bg-surface px-2 py-0.5 text-[9px] font-semibold uppercase tracking-[0.1em] text-muted">
+                    {assetClassLabel(
+                      instrument.assetClass,
+                    )}
+                  </span>
+                </div>
 
-        <div className="mt-6 border-t border-border pt-5">
-          <p className="text-[10px] font-medium uppercase tracking-[0.14em] text-muted">
-            Investment Thesis
-          </p>
-
-          <p className="mt-2 text-sm leading-7 text-foreground">
-            {result.thesis}
-          </p>
-        </div>
-
-        <div className="mt-5 flex flex-wrap gap-2 text-[10px] text-muted">
-          <span className="rounded border border-border-subtle px-2 py-1">
-            Provider: {result.providerId}
-          </span>
-
-          <span className="rounded border border-border-subtle px-2 py-1">
-            Model: {result.model}
-          </span>
-
-          <span className="rounded border border-border-subtle px-2 py-1">
-            Generated:{" "}
-            {new Date(
-              result.generatedAt,
-            ).toLocaleString()}
-          </span>
-        </div>
-      </section>
-
-      <div className="grid gap-6 md:grid-cols-2">
-        <ResearchListCard
-          title="Bull Case"
-          items={result.bullCase}
-          tone="positive"
-        />
-
-        <ResearchListCard
-          title="Bear Case"
-          items={result.bearCase}
-          tone="negative"
-        />
-
-        <ResearchListCard
-          title="Catalysts"
-          items={result.catalysts}
-          tone="positive"
-        />
-
-        <ResearchListCard
-          title="Risks"
-          items={result.risks}
-          tone="negative"
-        />
-      </div>
-
-      <section className="rounded-xl border border-border bg-surface">
-        <div className="border-b border-border px-5 py-4">
-          <h2 className="text-sm font-semibold text-foreground">
-            Research Sections
-          </h2>
-
-          <p className="mt-1 text-xs text-muted">
-            Structured analysis generated by the research engine.
-          </p>
-        </div>
-
-        <div className="divide-y divide-border">
-          {result.sections.map(
-            (section) => (
-              <article
-                key={section.title}
-                className="p-5"
-              >
-                <h3 className="text-sm font-medium text-foreground">
-                  {section.title}
-                </h3>
-
-                <p className="mt-2 text-sm leading-6 text-muted-strong">
-                  {section.summary}
+                <p className="mt-1 truncate text-xs text-muted">
+                  {instrument.name}
                 </p>
-
-                <ul className="mt-3 space-y-2">
-                  {section.keyPoints.map(
-                    (point) => (
-                      <li
-                        key={point}
-                        className="flex gap-2 text-xs leading-5 text-muted"
-                      >
-                        <span className="mt-2 h-1 w-1 shrink-0 rounded-full bg-accent" />
-                        {point}
-                      </li>
-                    ),
-                  )}
-                </ul>
-              </article>
-            ),
-          )}
-        </div>
-      </section>
-
-      <section className="rounded-xl border border-border bg-surface">
-        <div className="border-b border-border px-5 py-4">
-          <h2 className="text-sm font-semibold text-foreground">
-            Evidence
-          </h2>
-
-          <p className="mt-1 text-xs text-muted">
-            Sources explicitly supplied to the AI provider.
-          </p>
-        </div>
-
-        <div className="divide-y divide-border">
-          {result.evidence.map(
-            (item, index) => (
-              <div
-                key={`${item.source}-${index}`}
-                className="grid gap-2 p-5 md:grid-cols-[180px_1fr_80px]"
-              >
-                <span className="text-xs font-medium text-muted-strong">
-                  {item.source}
-                </span>
-
-                <p className="text-xs leading-5 text-muted">
-                  {item.claim}
-                </p>
-
-                <span className="text-[10px] uppercase tracking-[0.1em] text-muted">
-                  {item.relevance}
-                </span>
               </div>
-            ),
-          )}
+
+              <div className="grid grid-cols-3 gap-2 sm:min-w-[300px]">
+                <div className="rounded-lg border border-border-subtle bg-surface px-3 py-2">
+                  <p className="text-[8px] font-semibold uppercase tracking-[0.1em] text-muted">
+                    Exchange
+                  </p>
+
+                  <p className="mt-1 truncate font-mono text-[10px] font-semibold text-foreground">
+                    {instrument.exchangeId}
+                  </p>
+                </div>
+
+                <div className="rounded-lg border border-border-subtle bg-surface px-3 py-2">
+                  <p className="text-[8px] font-semibold uppercase tracking-[0.1em] text-muted">
+                    Country
+                  </p>
+
+                  <p className="mt-1 font-mono text-[10px] font-semibold text-foreground">
+                    {instrument.countryCode}
+                  </p>
+                </div>
+
+                <div className="rounded-lg border border-border-subtle bg-surface px-3 py-2">
+                  <p className="text-[8px] font-semibold uppercase tracking-[0.1em] text-muted">
+                    Currency
+                  </p>
+
+                  <p className="mt-1 font-mono text-[10px] font-semibold text-foreground">
+                    {instrument.currency}
+                  </p>
+                </div>
+              </div>
+            </div>
+          ) : null}
+
+          {error ? (
+            <div
+              role="alert"
+              className="mt-4 flex items-start gap-3 rounded-xl border border-negative/20 bg-negative-muted px-4 py-3"
+            >
+              <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-negative/30 font-mono text-[10px] font-semibold text-negative">
+                !
+              </span>
+
+              <div>
+                <p className="text-xs font-semibold text-negative">
+                  Research request failed
+                </p>
+
+                <p className="mt-1 text-[11px] leading-5 text-muted">
+                  {error}
+                </p>
+              </div>
+            </div>
+          ) : null}
         </div>
       </section>
 
-      <section className="rounded-xl border border-warning/30 bg-warning-muted p-5">
-        <p className="text-[10px] font-medium uppercase tracking-[0.14em] text-warning">
-          Limitations
-        </p>
+      {instrument ? (
+        <StockResearchPanel
+          instrument={instrument}
+        />
+      ) : (
+        <section className="glass-panel-elevated relative overflow-hidden rounded-2xl">
+          <div className="spatial-grid pointer-events-none absolute inset-0 opacity-10" />
 
-        <ul className="mt-3 space-y-2">
-          {result.limitations.map(
-            (limitation) => (
-              <li
-                key={limitation}
-                className="text-xs leading-5 text-muted-strong"
-              >
-                {limitation}
-              </li>
-            ),
-          )}
-        </ul>
-      </section>
+          <div className="relative grid gap-8 px-6 py-14 lg:grid-cols-[0.9fr_1.1fr] lg:px-8 lg:py-16">
+            <div>
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-accent/20 bg-accent-muted font-mono text-xs font-semibold text-accent">
+                AI
+              </div>
+
+              <p className="mt-6 text-[10px] font-semibold uppercase tracking-[0.16em] text-muted">
+                Intelligence workspace
+              </p>
+
+              <h2 className="mt-2 text-xl font-semibold tracking-[-0.025em] text-foreground">
+                Research terminal ready
+              </h2>
+
+              <p className="mt-3 max-w-lg text-sm leading-6 text-muted">
+                Search a security to move from raw market identity into
+                a unified research workflow spanning live market data,
+                quantitative risk, historical behavior, and AI-assisted
+                analysis.
+              </p>
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-2">
+              <ResearchCapability
+                number="01"
+                title="Market context"
+                description="Identity, exchange, geography, asset class, and live provider-backed context."
+              />
+
+              <ResearchCapability
+                number="02"
+                title="Quantitative risk"
+                description="Volatility, drawdown, systematic risk, liquidity, tail risk, and model drivers."
+              />
+
+              <ResearchCapability
+                number="03"
+                title="AI research"
+                description="Structured research workflows built around the selected security and available data."
+              />
+
+              <ResearchCapability
+                number="04"
+                title="Decision context"
+                description="Bring market observations and quantitative evidence together without hiding data provenance."
+              />
+            </div>
+          </div>
+        </section>
+      )}
     </div>
   );
 }
 
-function ResearchListCard({
+function ResearchCapability({
+  number,
   title,
-  items,
-  tone,
+  description,
 }: {
+  number: string;
   title: string;
-  items: string[];
-  tone: "positive" | "negative";
+  description: string;
 }) {
-  const toneClass =
-    tone === "positive"
-      ? "text-accent"
-      : "text-negative";
-
   return (
-    <section className="rounded-xl border border-border bg-surface p-5">
-      <h2
-        className={`text-sm font-semibold ${toneClass}`}
-      >
-        {title}
-      </h2>
+    <div className="group rounded-xl border border-border-subtle bg-surface-hover p-5 transition-all hover:-translate-y-0.5 hover:border-border hover:bg-surface">
+      <div className="flex items-center justify-between gap-4">
+        <span className="font-mono text-[9px] font-semibold tracking-[0.12em] text-muted">
+          {number}
+        </span>
 
-      <ul className="mt-4 space-y-3">
-        {items.map(
-          (item) => (
-            <li
-              key={item}
-              className="flex gap-3 text-xs leading-5 text-muted-strong"
-            >
-              <span
-                className={`mt-2 h-1.5 w-1.5 shrink-0 rounded-full ${
-                  tone === "positive"
-                    ? "bg-accent"
-                    : "bg-negative"
-                }`}
-              />
-              {item}
-            </li>
-          ),
-        )}
-      </ul>
-    </section>
+        <span className="h-1.5 w-1.5 rounded-full bg-border transition-colors group-hover:bg-accent" />
+      </div>
+
+      <h3 className="mt-5 text-sm font-semibold text-foreground">
+        {title}
+      </h3>
+
+      <p className="mt-2 text-xs leading-5 text-muted">
+        {description}
+      </p>
+    </div>
   );
 }

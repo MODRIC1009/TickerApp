@@ -1,13 +1,17 @@
 import { DemoMarketDataProvider } from "./providers/demo-provider";
 import { TwelveDataProvider } from "./providers/twelve-data-provider";
 import { MarketDataProviderRegistry } from "./provider-registry";
-import { MarketDataService } from "./market-data-service";
+import {
+  MarketDataService,
+  type MarketDataServiceOptions,
+} from "./market-data-service";
 import {
   createMarketDataConfig,
   type MarketDataConfig,
 } from "./config";
 
-export interface MarketDataContainerOptions {
+export interface MarketDataContainerOptions
+  extends MarketDataServiceOptions {
   twelveDataApiKey?: string;
   defaultProviderId?: string;
 }
@@ -15,24 +19,35 @@ export interface MarketDataContainerOptions {
 export function createMarketDataService(
   options: MarketDataContainerOptions = {},
 ): MarketDataService {
-  const config: MarketDataConfig = createMarketDataConfig({
-    twelveDataApiKey: options.twelveDataApiKey,
-    defaultProviderId: options.defaultProviderId,
-  });
+  const config: MarketDataConfig =
+    createMarketDataConfig({
+      twelveDataApiKey:
+        options.twelveDataApiKey,
+      defaultProviderId:
+        options.defaultProviderId,
+    });
 
-  const registry = new MarketDataProviderRegistry();
+  const registry =
+    new MarketDataProviderRegistry();
 
-  registry.register(new DemoMarketDataProvider());
+  registry.register(
+    new DemoMarketDataProvider(),
+  );
 
   if (config.twelveDataApiKey) {
     registry.register(
       new TwelveDataProvider({
-        apiKey: config.twelveDataApiKey,
+        apiKey:
+          config.twelveDataApiKey,
       }),
     );
   }
 
-  if (!registry.has(config.defaultProviderId)) {
+  if (
+    !registry.has(
+      config.defaultProviderId,
+    )
+  ) {
     throw new Error(
       `Configured market data provider "${config.defaultProviderId}" is not registered.`,
     );
@@ -41,5 +56,11 @@ export function createMarketDataService(
   return new MarketDataService(
     registry,
     config.defaultProviderId,
+    undefined,
+    {
+      allowFallback:
+        options.allowFallback ??
+        false,
+    },
   );
 }

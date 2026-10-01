@@ -1,22 +1,69 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 
-export async function GET() {
-  return NextResponse.json({
-    service: "market-data",
-    version: "1",
-    endpoints: {
-      providers: "/api/market-data/providers",
-      status: "/api/market-data/status",
-      search: "/api/market-data/search?q=AAPL",
-      instrument: "/api/market-data/instrument?symbol=AAPL",
-      instrumentIdentity:
-        "/api/market-data/instrument/identity?country=US&exchange=nasdaq&symbol=AAPL",
-      quote: "/api/market-data/quote?symbol=AAPL",
-      history:
-        "/api/market-data/history?symbol=AAPL&startDate=2026-01-01&endDate=2026-01-31&interval=1d",
-      exchanges: "/api/market-data/exchanges",
-      session:
-        "/api/market-data/session?exchange=nasdaq",
-    },
-  });
+import {
+  marketDataErrorResponse,
+} from "@/lib/market-data-api";
+import { getMarketDataService } from "@/lib/market-data";
+
+export async function GET(
+  request: NextRequest,
+) {
+  try {
+    const searchParams =
+      request.nextUrl.searchParams;
+
+    const symbol =
+      searchParams
+        .get("symbol")
+        ?.trim()
+        .toUpperCase();
+
+    const providerId =
+      searchParams.get("provider") ??
+      undefined;
+
+    const marketDataService =
+      getMarketDataService();
+
+    if (!symbol) {
+      const health =
+        await marketDataService.getHealth();
+
+      return NextResponse.json(
+        {
+          service: "market-data",
+          health,
+        },
+        {
+          headers: {
+            "Cache-Control":
+              "no-store, max-age=0",
+          },
+        },
+      );
+    }
+
+    const quote =
+      await marketDataService.getQuote(
+        symbol,
+        providerId,
+      );
+
+    return NextResponse.json(
+      {
+        quote,
+      },
+      {
+        headers: {
+          "Cache-Control":
+            "no-store, max-age=0",
+        },
+      },
+    );
+  } catch (error) {
+    return marketDataErrorResponse(
+      error,
+      "Market-data request failed.",
+    );
+  }
 }

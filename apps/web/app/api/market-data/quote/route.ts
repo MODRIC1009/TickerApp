@@ -1,52 +1,55 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 
-import {
-  validateSymbol,
-} from "@tickerapp/market-data";
-import { getMarketDataService } from "@/lib/market-data";
 import {
   marketDataErrorResponse,
 } from "@/lib/market-data-api";
+import { getMarketDataService } from "@/lib/market-data";
 
-export async function GET(request: Request) {
-  const { searchParams } = new URL(request.url);
-
-  const rawSymbol = searchParams.get("symbol");
-  const providerId =
-    searchParams.get("provider")?.trim() || undefined;
-
-  if (!rawSymbol) {
-    return NextResponse.json(
-      { error: "Missing required query parameter: symbol" },
-      { status: 400 },
-    );
-  }
-
+export async function GET(
+  request: NextRequest,
+) {
   try {
-    const symbol = validateSymbol(rawSymbol);
+    const symbol =
+      request.nextUrl.searchParams
+        .get("symbol")
+        ?.trim()
+        .toUpperCase();
+
+    if (!symbol) {
+      return NextResponse.json(
+        {
+          error:
+            "A ticker symbol is required.",
+          code: "invalid_request",
+        },
+        { status: 400 },
+      );
+    }
+
+    const providerId =
+      request.nextUrl.searchParams.get(
+        "provider",
+      ) ?? undefined;
+
+    const marketDataService =
+      getMarketDataService();
 
     const quote =
-      await getMarketDataService().getQuote(
+      await marketDataService.getQuote(
         symbol,
         providerId,
       );
 
-    if (!quote) {
-      return NextResponse.json(
-        { error: `Quote for "${symbol}" not found.` },
-        { status: 404 },
-      );
-    }
-
-    return NextResponse.json({
-      quote,
-    });
-  } catch (error) {
-    console.error(
-      "Market quote request failed:",
-      error,
+    return NextResponse.json(
+      { quote },
+      {
+        headers: {
+          "Cache-Control":
+            "no-store, max-age=0",
+        },
+      },
     );
-
+  } catch (error) {
     return marketDataErrorResponse(
       error,
       "Market quote request failed.",

@@ -1,10 +1,16 @@
-import { describe, expect, it } from "vitest";
+import {
+  describe,
+  expect,
+  it,
+} from "vitest";
 
 import { createMarketDataConfig } from "./config";
 
 describe("createMarketDataConfig", () => {
   it("defaults to demo when no provider or API key is configured", () => {
-    expect(createMarketDataConfig()).toEqual({
+    expect(
+      createMarketDataConfig(),
+    ).toEqual({
       defaultProviderId: "demo",
       twelveDataApiKey: undefined,
     });
@@ -13,18 +19,22 @@ describe("createMarketDataConfig", () => {
   it("selects Twelve Data when an API key is configured", () => {
     expect(
       createMarketDataConfig({
-        twelveDataApiKey: "  test-api-key  ",
+        twelveDataApiKey:
+          "  test-api-key  ",
       }),
     ).toEqual({
-      defaultProviderId: "twelve-data",
-      twelveDataApiKey: "test-api-key",
+      defaultProviderId:
+        "twelve-data",
+      twelveDataApiKey:
+        "test-api-key",
     });
   });
 
   it("trims the API key", () => {
     expect(
       createMarketDataConfig({
-        twelveDataApiKey: "  abc123  ",
+        twelveDataApiKey:
+          "  abc123  ",
       }).twelveDataApiKey,
     ).toBe("abc123");
   });
@@ -33,11 +43,13 @@ describe("createMarketDataConfig", () => {
     expect(
       createMarketDataConfig({
         defaultProviderId: "demo",
-        twelveDataApiKey: "test-api-key",
+        twelveDataApiKey:
+          "test-api-key",
       }),
     ).toEqual({
       defaultProviderId: "demo",
-      twelveDataApiKey: "test-api-key",
+      twelveDataApiKey:
+        "test-api-key",
     });
   });
 
@@ -48,7 +60,35 @@ describe("createMarketDataConfig", () => {
       }),
     ).toEqual({
       defaultProviderId: "demo",
-      twelveDataApiKey: undefined,
+      twelveDataApiKey:
+        undefined,
     });
+  });
+
+  it("trims an explicitly configured provider", () => {
+    expect(
+      createMarketDataConfig({
+        defaultProviderId:
+          "  twelve-data  ",
+        twelveDataApiKey:
+          "test-api-key",
+      }),
+    ).toEqual({
+      defaultProviderId:
+        "twelve-data",
+      twelveDataApiKey:
+        "test-api-key",
+    });
+  });
+
+  it("rejects Twelve Data without an API key", () => {
+    expect(() =>
+      createMarketDataConfig({
+        defaultProviderId:
+          "twelve-data",
+      }),
+    ).toThrow(
+      "Twelve Data requires a valid API key.",
+    );
   });
 });

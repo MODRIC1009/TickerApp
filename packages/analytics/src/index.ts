@@ -4,6 +4,7 @@ export * from "./indicators";
 export * from "./performance";
 export * from "./returns";
 export * from "./risk";
+export * from "./risk-engine";
 export * from "./statistics";
 export * from "./strategy";
 export * from "./types";
