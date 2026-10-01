@@ -15,6 +15,7 @@ export interface HistoricalPriceRequest {
   startDate: string;
   endDate: string;
   interval: "1d" | "1h" | "15m" | "5m";
+  outputSize?: number;
 }
 
 export interface MarketDataProviderCapabilities {
