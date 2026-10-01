@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import {
+  GLOBAL_INSTRUMENTS,
+} from "@tickerapp/market-data";
+import {
   marketDataErrorResponse,
 } from "@/lib/market-data-api";
 import { getMarketDataService } from "@/lib/market-data";
@@ -27,6 +30,35 @@ const inFlightSearches = new Map<
   >
 >();
 
+function searchGlobalCatalog(
+  query: string,
+) {
+  const normalizedQuery =
+    query.trim().toLowerCase();
+
+  if (!normalizedQuery) {
+    return [];
+  }
+
+  return GLOBAL_INSTRUMENTS
+    .filter((instrument) =>
+      instrument.symbol
+        .toLowerCase()
+        .includes(normalizedQuery) ||
+      instrument.name
+        .toLowerCase()
+        .includes(normalizedQuery),
+    )
+    .map((instrument) => ({
+      instrument,
+      score:
+        instrument.symbol.toLowerCase() ===
+        normalizedQuery
+          ? 1
+          : 0.5,
+    }));
+}
+
 function trimSearchResults<T extends { instrument: { symbol: string; exchangeId: string; countryCode: string; currency: string; assetClass: string } }>(
   results: T[],
 ): T[] {
@@ -49,6 +81,26 @@ function trimSearchResults<T extends { instrument: { symbol: string; exchangeId:
     seen.add(key);
     return true;
   }).slice(0, MAX_RESULTS);
+}
+
+function mergeSearchResults<
+  T extends {
+    instrument: {
+      symbol: string;
+      exchangeId: string;
+      countryCode: string;
+      currency: string;
+      assetClass: string;
+    };
+  },
+>(
+  providerResults: T[],
+  catalogResults: T[],
+): T[] {
+  return trimSearchResults([
+    ...providerResults,
+    ...catalogResults,
+  ]);
 }
 
 export async function GET(
@@ -122,8 +174,13 @@ export async function GET(
     try {
       const rawResults =
         await searchRequest;
-      const results = trimSearchResults(
+
+      // Provider discovery is preferred, but the canonical catalog is always
+      // merged into discovery. This makes search resilient to provider-side
+      // symbol-search gaps without inventing quotes or historical prices.
+      const results = mergeSearchResults(
         rawResults,
+        searchGlobalCatalog(query),
       );
 
       searchCache.set(cacheKey, {
@@ -141,6 +198,38 @@ export async function GET(
           },
         },
       );
+    } catch (error) {
+      // Discovery remains useful even when the live provider is unavailable or
+      // rate-limited. The returned instruments are catalog metadata only;
+      // quote and historical-data requests still go through the provider.
+      const catalogResults =
+        searchGlobalCatalog(query);
+
+      if (catalogResults.length > 0) {
+        const results = trimSearchResults(
+          catalogResults,
+        );
+
+        searchCache.set(cacheKey, {
+          results,
+          expiresAt:
+            Date.now() + SEARCH_CACHE_TTL_MS,
+        });
+
+        return NextResponse.json(
+          { results },
+          {
+            headers: {
+              "Cache-Control":
+                "public, max-age=30, stale-while-revalidate=60",
+              "X-TickerApp-Search-Source":
+                "catalog-fallback",
+            },
+          },
+        );
+      }
+
+      throw error;
     } finally {
       if (!existingRequest) {
         inFlightSearches.delete(cacheKey);
