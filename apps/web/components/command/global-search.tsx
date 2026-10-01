@@ -17,7 +17,7 @@ type SearchInstrument = {
 };
 
 type SearchResponse = {
-  results?: SearchInstrument[];
+  results?: unknown[];
   error?: string;
 };
 
@@ -53,43 +53,66 @@ function normalizeSearchResults(
 
   const seen = new Set<string>();
 
-  return results.filter((candidate): candidate is SearchInstrument => {
+  return results.flatMap((candidate) => {
     if (!candidate || typeof candidate !== "object") {
-      return false;
+      return [];
     }
 
-    const instrument = candidate as Partial<SearchInstrument>;
+    const result = candidate as {
+      instrument?: unknown;
+      symbol?: unknown;
+      name?: unknown;
+      exchangeId?: unknown;
+      countryCode?: unknown;
+      currency?: unknown;
+      assetClass?: unknown;
+    };
+
+    const source =
+      result.instrument &&
+      typeof result.instrument === "object"
+        ? (result.instrument as {
+            symbol?: unknown;
+            name?: unknown;
+            exchangeId?: unknown;
+            countryCode?: unknown;
+            currency?: unknown;
+            assetClass?: unknown;
+          })
+        : result;
 
     if (
-      typeof instrument.symbol !== "string" ||
-      typeof instrument.name !== "string"
+      typeof source.symbol !== "string" ||
+      typeof source.name !== "string"
     ) {
-      return false;
+      return [];
     }
 
     const normalized: SearchInstrument = {
-      symbol: instrument.symbol.trim().toUpperCase(),
-      name: instrument.name.trim() || instrument.symbol.trim().toUpperCase(),
+      symbol: source.symbol.trim().toUpperCase(),
+      name:
+        source.name.trim() ||
+        source.symbol.trim().toUpperCase(),
       exchangeId:
-        typeof instrument.exchangeId === "string"
-          ? instrument.exchangeId.trim()
+        typeof source.exchangeId === "string"
+          ? source.exchangeId.trim()
           : "",
       countryCode:
-        typeof instrument.countryCode === "string"
-          ? instrument.countryCode.trim().toUpperCase()
+        typeof source.countryCode === "string"
+          ? source.countryCode.trim().toUpperCase()
           : "",
       currency:
-        typeof instrument.currency === "string"
-          ? instrument.currency.trim().toUpperCase()
+        typeof source.currency === "string"
+          ? source.currency.trim().toUpperCase()
           : "",
       assetClass:
-        typeof instrument.assetClass === "string"
-          ? instrument.assetClass.trim().toLowerCase()
+        typeof source.assetClass === "string"
+          ? source.assetClass.trim().toLowerCase()
           : "equity",
     };
 
     if (!normalized.symbol) {
-      return false;
+      return [];
     }
 
     const key = [
@@ -98,15 +121,14 @@ function normalizeSearchResults(
       normalized.countryCode,
       normalized.currency,
       normalized.assetClass,
-      normalized.name.toLowerCase(),
     ].join("|");
 
     if (seen.has(key)) {
-      return false;
+      return [];
     }
 
     seen.add(key);
-    return true;
+    return [normalized];
   });
 }
 
@@ -196,7 +218,7 @@ export function GlobalSearch() {
           setLoading(false);
         }
       }
-    }, 300);
+    }, 250);
 
     return () => {
       cancelled = true;
@@ -432,10 +454,7 @@ export function GlobalSearch() {
                   instrument.countryCode || "country",
                   instrument.currency || "currency",
                   instrument.assetClass || "asset",
-                  instrument.name,
-                ]
-                  .join("-")
-                  .replace(/[^a-zA-Z0-9_-]/g, "_");
+                ].join("-");
 
                 return (
                   <Link
@@ -493,7 +512,7 @@ export function GlobalSearch() {
 
           <div className="border-t border-border-subtle px-4 py-2.5">
             <p className="text-[9px] leading-4 text-muted">
-              Search results depend on the configured market-data provider and its coverage.
+              Search results are sourced from the canonical instrument catalog first, then the configured market-data provider when needed.
             </p>
           </div>
         </div>
