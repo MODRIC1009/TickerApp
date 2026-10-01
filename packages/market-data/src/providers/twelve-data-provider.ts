@@ -27,6 +27,8 @@ interface TwelveDataQuoteResponse
   symbol?: string;
   name?: string;
   exchange?: string;
+  mic_code?: string;
+  country?: string;
   currency?: string;
   datetime?: string;
   timestamp?: number;
@@ -47,6 +49,7 @@ interface TwelveDataTimeSeriesResponse
     symbol?: string;
     name?: string;
     exchange?: string;
+    mic_code?: string;
     currency?: string;
     type?: string;
   };
@@ -68,6 +71,7 @@ interface TwelveDataSymbolSearchResponse
     exchange?: string;
     mic_code?: string;
     exchange_timezone?: string;
+    country?: string;
     currency?: string;
     instrument_type?: string;
   }>;
@@ -77,6 +81,15 @@ export interface TwelveDataProviderOptions {
   apiKey: string;
   baseUrl?: string;
 }
+
+interface CacheEntry<T> {
+  value: T;
+  expiresAt: number;
+}
+
+const SEARCH_CACHE_TTL_MS = 30_000;
+const QUOTE_CACHE_TTL_MS = 5_000;
+const HISTORICAL_CACHE_TTL_MS = 60_000;
 
 export class TwelveDataProvider
   implements MarketDataProvider
@@ -94,6 +107,14 @@ export class TwelveDataProvider
 
   private readonly apiKey: string;
   private readonly baseUrl: string;
+  private readonly cache = new Map<
+    string,
+    CacheEntry<unknown>
+  >();
+  private readonly inFlight = new Map<
+    string,
+    Promise<unknown>
+  >();
 
   constructor(
     options: TwelveDataProviderOptions,
@@ -110,9 +131,7 @@ export class TwelveDataProvider
       "https://api.twelvedata.com";
   }
 
-  private async request<
-    T extends TwelveDataResponse,
-  >(
+  private async request<T extends TwelveDataResponse>(
     endpoint: string,
     params: Record<string, string>,
   ): Promise<T> {
@@ -155,7 +174,7 @@ export class TwelveDataProvider
     if (response.status === 429) {
       throw new MarketDataError(
         "rate_limited",
-        "Twelve Data API rate limit exceeded.",
+        "Twelve Data API rate limit exceeded. Cached market data will be used when available; otherwise try again after the provider quota resets.",
         {
           providerId: this.id,
         },
@@ -189,6 +208,51 @@ export class TwelveDataProvider
     return data;
   }
 
+  private async cachedRequest<T extends TwelveDataResponse>(
+    cacheKey: string,
+    ttlMs: number,
+    endpoint: string,
+    params: Record<string, string>,
+  ): Promise<T> {
+    const cached = this.cache.get(cacheKey) as
+      | CacheEntry<T>
+      | undefined;
+
+    if (
+      cached &&
+      cached.expiresAt > Date.now()
+    ) {
+      return cached.value;
+    }
+
+    const existing = this.inFlight.get(
+      cacheKey,
+    );
+
+    if (existing) {
+      return existing as Promise<T>;
+    }
+
+    const request = this.request<T>(
+      endpoint,
+      params,
+    )
+      .then((value) => {
+        this.cache.set(cacheKey, {
+          value,
+          expiresAt:
+            Date.now() + ttlMs,
+        });
+        return value;
+      })
+      .finally(() => {
+        this.inFlight.delete(cacheKey);
+      });
+
+    this.inFlight.set(cacheKey, request);
+    return request;
+  }
+
   async searchInstruments(
     query: string,
   ): Promise<InstrumentSearchResult[]> {
@@ -200,14 +264,17 @@ export class TwelveDataProvider
     }
 
     const response =
-      await this.request<TwelveDataSymbolSearchResponse>(
+      await this.cachedRequest<TwelveDataSymbolSearchResponse>(
+        `search:${normalizedQuery.toUpperCase()}`,
+        SEARCH_CACHE_TTL_MS,
         "/symbol_search",
         {
           symbol: normalizedQuery,
+          outputsize: "30",
         },
       );
 
-    return (response.data ?? []).map(
+    const results = (response.data ?? []).map(
       (item) => ({
         instrument:
           normalizeProviderInstrument(
@@ -220,6 +287,8 @@ export class TwelveDataProvider
                 item.exchange,
               micCode:
                 item.mic_code,
+              countryCode:
+                item.country,
               currency:
                 item.currency,
               instrumentType:
@@ -228,6 +297,26 @@ export class TwelveDataProvider
           ),
       }),
     );
+
+    const seen = new Set<string>();
+
+    return results.filter((result) => {
+      const instrument = result.instrument;
+      const key = [
+        instrument.symbol,
+        instrument.exchangeId,
+        instrument.countryCode,
+        instrument.currency,
+        instrument.assetClass,
+      ].join("|");
+
+      if (seen.has(key)) {
+        return false;
+      }
+
+      seen.add(key);
+      return true;
+    });
   }
 
   async getInstrument(
@@ -255,11 +344,16 @@ export class TwelveDataProvider
   async getQuote(
     symbol: string,
   ): Promise<Quote | null> {
+    const normalizedSymbol =
+      symbol.trim().toUpperCase();
+
     const response =
-      await this.request<TwelveDataQuoteResponse>(
+      await this.cachedRequest<TwelveDataQuoteResponse>(
+        `quote:${normalizedSymbol}`,
+        QUOTE_CACHE_TTL_MS,
         "/quote",
         {
-          symbol: symbol.trim(),
+          symbol: normalizedSymbol,
         },
       );
 
@@ -307,7 +401,9 @@ export class TwelveDataProvider
     request: HistoricalPriceRequest,
   ): Promise<OHLCVBar[]> {
     const response =
-      await this.request<TwelveDataTimeSeriesResponse>(
+      await this.cachedRequest<TwelveDataTimeSeriesResponse>(
+        `history:${request.symbol.trim().toUpperCase()}:${request.startDate}:${request.endDate}:${request.interval}:${request.outputSize ?? ""}`,
+        HISTORICAL_CACHE_TTL_MS,
         "/time_series",
         {
           symbol: request.symbol.trim(),
@@ -389,7 +485,9 @@ export class TwelveDataProvider
 
   async healthCheck(): Promise<MarketDataProviderHealth> {
     try {
-      await this.request<TwelveDataQuoteResponse>(
+      await this.cachedRequest<TwelveDataQuoteResponse>(
+        "health:AAPL",
+        QUOTE_CACHE_TTL_MS,
         "/quote",
         {
           symbol: "AAPL",
@@ -416,9 +514,7 @@ export class TwelveDataProvider
     }
   }
 
-  async listExchanges(): Promise<
-    Exchange[]
-  > {
+  async listExchanges(): Promise<Exchange[]> {
     throw new Error(
       "Twelve Data exchange listing is not implemented yet.",
     );
@@ -430,13 +526,10 @@ export class TwelveDataProvider
     switch (interval) {
       case "1d":
         return "1day";
-
       case "1h":
         return "1h";
-
       case "15m":
         return "15min";
-
       case "5m":
         return "5min";
     }
