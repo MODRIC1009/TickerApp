@@ -40,6 +40,22 @@ describe("portfolio web services", () => {
     expect(rate.toCurrency).toBe("EUR");
   });
 
+  it("initializes an empty default portfolio", () => {
+    resetPortfolioService();
+
+    const service = getPortfolioService();
+    const portfolio = service.getPortfolio("default");
+
+    expect(portfolio).toMatchObject({
+      id: "default",
+      name: "Default portfolio",
+      baseCurrency: "USD",
+      cashBalance: 0,
+    });
+
+    expect(service.getPositions("default")).toEqual([]);
+  });
+
   it("resets both services", () => {
     resetPortfolioService();
 
