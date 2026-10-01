@@ -5,6 +5,52 @@ import {
 } from "@/lib/market-data-api";
 import { getMarketDataService } from "@/lib/market-data";
 
+const SEARCH_CACHE_TTL_MS = 30_000;
+const MAX_RESULTS = 20;
+
+const searchCache = new Map<
+  string,
+  {
+    expiresAt: number;
+    results: Awaited<
+      ReturnType<
+        ReturnType<typeof getMarketDataService>["searchInstruments"]
+      >
+    >;
+  }
+>();
+
+const inFlightSearches = new Map<
+  string,
+  ReturnType<
+    ReturnType<typeof getMarketDataService>["searchInstruments"]
+  >
+>();
+
+function trimSearchResults<T extends { instrument: { symbol: string; exchangeId: string; countryCode: string; currency: string; assetClass: string } }>(
+  results: T[],
+): T[] {
+  const seen = new Set<string>();
+
+  return results.filter((result) => {
+    const instrument = result.instrument;
+    const key = [
+      instrument.symbol,
+      instrument.exchangeId,
+      instrument.countryCode,
+      instrument.currency,
+      instrument.assetClass,
+    ].join("|");
+
+    if (seen.has(key)) {
+      return false;
+    }
+
+    seen.add(key);
+    return true;
+  }).slice(0, MAX_RESULTS);
+}
+
 export async function GET(
   request: NextRequest,
 ) {
@@ -22,7 +68,7 @@ export async function GET(
         {
           headers: {
             "Cache-Control":
-              "no-store, max-age=0",
+              "public, max-age=5, stale-while-revalidate=30",
           },
         },
       );
@@ -39,25 +85,67 @@ export async function GET(
       );
     }
 
-    const marketDataService =
-      getMarketDataService();
+    const cacheKey = query.toUpperCase();
+    const cached = searchCache.get(cacheKey);
 
-    const results =
-      marketDataService.searchInstruments(
+    if (
+      cached &&
+      cached.expiresAt > Date.now()
+    ) {
+      return NextResponse.json(
+        { results: cached.results },
+        {
+          headers: {
+            "Cache-Control":
+              "public, max-age=30, stale-while-revalidate=60",
+          },
+        },
+      );
+    }
+
+    const existingRequest =
+      inFlightSearches.get(cacheKey);
+
+    const searchRequest =
+      existingRequest ??
+      getMarketDataService().searchInstruments(
         query,
       );
 
-    return NextResponse.json(
-      {
+    if (!existingRequest) {
+      inFlightSearches.set(
+        cacheKey,
+        searchRequest,
+      );
+    }
+
+    try {
+      const rawResults =
+        await searchRequest;
+      const results = trimSearchResults(
+        rawResults,
+      );
+
+      searchCache.set(cacheKey, {
         results,
-      },
-      {
-        headers: {
-          "Cache-Control":
-            "no-store, max-age=0",
+        expiresAt:
+          Date.now() + SEARCH_CACHE_TTL_MS,
+      });
+
+      return NextResponse.json(
+        { results },
+        {
+          headers: {
+            "Cache-Control":
+              "public, max-age=30, stale-while-revalidate=60",
+          },
         },
-      },
-    );
+      );
+    } finally {
+      if (!existingRequest) {
+        inFlightSearches.delete(cacheKey);
+      }
+    }
   } catch (error) {
     return marketDataErrorResponse(
       error,
