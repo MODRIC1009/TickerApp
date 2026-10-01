@@ -43,13 +43,15 @@ export async function GET(
       getMarketDataService();
 
     const results =
-      marketDataService.searchInstruments(
+      await marketDataService.searchInstruments(
         query,
       );
 
     return NextResponse.json(
       {
-        results,
+        results: results.map(
+          ({ instrument }) => instrument,
+        ),
       },
       {
         headers: {
