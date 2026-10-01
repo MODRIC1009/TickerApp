@@ -18,6 +18,12 @@ describe("resolveExchange", () => {
       confidence: "alias",
     });
 
+    expect(resolveExchange("XNGS")).toEqual({
+      exchangeId: "nasdaq",
+      countryCode: "US",
+      confidence: "alias",
+    });
+
     expect(resolveExchange("XNSE")).toEqual({
       exchangeId: "nse",
       countryCode: "IN",
@@ -29,6 +35,38 @@ describe("resolveExchange", () => {
       countryCode: "GB",
       confidence: "alias",
     });
+  });
+
+  it("resolves provider exchange names with spaces and punctuation", () => {
+    const expected = {
+      exchangeId: "nasdaq",
+      countryCode: "US",
+      confidence: "alias" as const,
+    };
+
+    expect(
+      resolveExchange(
+        "NASDAQ GLOBAL SELECT MARKET",
+      ),
+    ).toEqual(expected);
+
+    expect(
+      resolveExchange(
+        "NASDAQ GLOBAL MARKET",
+      ),
+    ).toEqual(expected);
+
+    expect(
+      resolveExchange(
+        "NASDAQ CAPITAL MARKET",
+      ),
+    ).toEqual(expected);
+
+    expect(
+      resolveExchange(
+        "NASDAQ/NGS (Global Select Market)",
+      ),
+    ).toEqual(expected);
   });
 
   it("resolves common exchange names case-insensitively", () => {
