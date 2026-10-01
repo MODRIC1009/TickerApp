@@ -30,18 +30,25 @@ const bars: OHLCVBar[] = [
 ];
 
 describe("PriceHistoryChart", () => {
-  it("renders the chart container for historical bars", () => {
-    const { container } =
-      render(
-        <PriceHistoryChart
-          bars={bars}
-        />,
-      );
+  it("renders an accessible price-history chart for historical bars", () => {
+    render(
+      <PriceHistoryChart
+        bars={bars}
+      />,
+    );
 
     expect(
-      container.querySelector(
-        ".recharts-responsive-container",
-      ),
+      screen.getByRole("img", {
+        name: /Price history chart from Jan 2, 2026 to Jan 5, 2026/i,
+      }),
+    ).toBeTruthy();
+
+    expect(
+      screen.getByText("Period high"),
+    ).toBeTruthy();
+
+    expect(
+      screen.getByText("Period low"),
     ).toBeTruthy();
   });
 
@@ -52,13 +59,13 @@ describe("PriceHistoryChart", () => {
 
     expect(
       screen.getByText(
-        "No historical price data available.",
+        "Not enough historical data",
       ),
     ).toBeTruthy();
 
     expect(
       screen.getByText(
-        "Try again later or select a different instrument.",
+        "At least two valid observations are required.",
       ),
     ).toBeTruthy();
   });
