@@ -320,6 +320,13 @@ export class TwelveDataProvider
           end_date:
             request.endDate,
           order: "ASC",
+          ...(request.outputSize !== undefined
+            ? {
+                outputsize: String(
+                  request.outputSize,
+                ),
+              }
+            : {}),
         },
       );
 
