@@ -80,6 +80,18 @@ export interface TwelveDataProviderOptions {
 
 const MAX_SEARCH_RESULTS = 12;
 
+const SEARCH_CACHE_TTL_MS =
+  5 * 60 * 1000;
+const QUOTE_CACHE_TTL_MS =
+  15 * 1000;
+const HISTORY_CACHE_TTL_MS =
+  5 * 60 * 1000;
+
+type CachedResponse = {
+  expiresAt: number;
+  data: TwelveDataResponse;
+};
+
 export class TwelveDataProvider
   implements MarketDataProvider
 {
@@ -96,6 +108,8 @@ export class TwelveDataProvider
 
   private readonly apiKey: string;
   private readonly baseUrl: string;
+  private readonly responseCache =
+    new Map<string, CachedResponse>();
 
   constructor(
     options: TwelveDataProviderOptions,
@@ -112,12 +126,79 @@ export class TwelveDataProvider
       "https://api.twelvedata.com";
   }
 
+  private getCacheTtl(
+    endpoint: string,
+  ): number {
+    if (endpoint === "/quote") {
+      return QUOTE_CACHE_TTL_MS;
+    }
+
+    if (endpoint === "/symbol_search") {
+      return SEARCH_CACHE_TTL_MS;
+    }
+
+    if (endpoint === "/time_series") {
+      return HISTORY_CACHE_TTL_MS;
+    }
+
+    return 0;
+  }
+
+  private getCacheKey(
+    endpoint: string,
+    params: Record<string, string>,
+  ): string {
+    const sortedParams = Object.entries(
+      params,
+    ).sort(([left], [right]) =>
+      left.localeCompare(right),
+    );
+
+    return `${endpoint}?${new URLSearchParams(
+      sortedParams,
+    ).toString()}`;
+  }
+
+  private clearExpiredCacheEntry(
+    key: string,
+  ): void {
+    const cached =
+      this.responseCache.get(key);
+
+    if (
+      cached &&
+      cached.expiresAt <= Date.now()
+    ) {
+      this.responseCache.delete(key);
+    }
+  }
+
   private async request<
     T extends TwelveDataResponse,
   >(
     endpoint: string,
     params: Record<string, string>,
   ): Promise<T> {
+    const cacheKey = this.getCacheKey(
+      endpoint,
+      params,
+    );
+    const cacheTtl =
+      this.getCacheTtl(endpoint);
+
+    if (cacheTtl > 0) {
+      this.clearExpiredCacheEntry(
+        cacheKey,
+      );
+
+      const cached =
+        this.responseCache.get(cacheKey);
+
+      if (cached) {
+        return cached.data as T;
+      }
+    }
+
     const url = new URL(
       endpoint,
       this.baseUrl,
@@ -157,7 +238,7 @@ export class TwelveDataProvider
     if (response.status === 429) {
       throw new MarketDataError(
         "rate_limited",
-        "Twelve Data API rate limit exceeded.",
+        "Twelve Data API rate limit exceeded. Please wait for the provider quota to reset before retrying.",
         {
           providerId: this.id,
         },
@@ -184,6 +265,17 @@ export class TwelveDataProvider
           "Twelve Data returned an API error.",
         {
           providerId: this.id,
+        },
+      );
+    }
+
+    if (cacheTtl > 0) {
+      this.responseCache.set(
+        cacheKey,
+        {
+          expiresAt:
+            Date.now() + cacheTtl,
+          data,
         },
       );
     }
@@ -277,7 +369,13 @@ export class TwelveDataProvider
 
     for (const result of results) {
       const key =
-        result.instrument.symbol;
+        [
+          result.instrument.symbol,
+          result.instrument.exchangeId,
+          result.instrument.countryCode,
+          result.instrument.currency,
+          result.instrument.assetClass,
+        ].join("|");
 
       if (!unique.has(key)) {
         unique.set(key, result);
