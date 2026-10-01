@@ -78,6 +78,8 @@ export interface TwelveDataProviderOptions {
   baseUrl?: string;
 }
 
+const MAX_SEARCH_RESULTS = 12;
+
 export class TwelveDataProvider
   implements MarketDataProvider
 {
@@ -199,6 +201,9 @@ export class TwelveDataProvider
       return [];
     }
 
+    const normalizedLower =
+      normalizedQuery.toLowerCase();
+
     const response =
       await this.request<TwelveDataSymbolSearchResponse>(
         "/symbol_search",
@@ -207,9 +212,9 @@ export class TwelveDataProvider
         },
       );
 
-    return (response.data ?? []).map(
-      (item) => ({
-        instrument:
+    const results = (response.data ?? [])
+      .map((item) => {
+        const instrument =
           normalizeProviderInstrument(
             this.id,
             {
@@ -225,8 +230,69 @@ export class TwelveDataProvider
               instrumentType:
                 item.instrument_type,
             },
-          ),
-      }),
+          );
+
+        const symbol =
+          instrument.symbol.toLowerCase();
+        const name =
+          instrument.name.toLowerCase();
+
+        let score = 0.4;
+
+        if (symbol === normalizedLower) {
+          score = 1;
+        } else if (
+          symbol.startsWith(
+            normalizedLower,
+          )
+        ) {
+          score = 0.9;
+        } else if (
+          name.startsWith(
+            normalizedLower,
+          )
+        ) {
+          score = 0.75;
+        } else if (
+          name.includes(normalizedLower)
+        ) {
+          score = 0.6;
+        }
+
+        return {
+          instrument,
+          score,
+        };
+      })
+      .sort(
+        (left, right) =>
+          (right.score ?? 0) -
+          (left.score ?? 0),
+      );
+
+    const unique = new Map<
+      string,
+      InstrumentSearchResult
+    >();
+
+    for (const result of results) {
+      const key =
+        result.instrument.symbol;
+
+      if (!unique.has(key)) {
+        unique.set(key, result);
+      }
+
+      if (
+        unique.size >=
+        MAX_SEARCH_RESULTS
+      ) {
+        break;
+      }
+    }
+
+    return Array.from(
+      unique.values(),
     );
   }
 
