@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  useCallback,
   useEffect,
   useMemo,
   useState,
@@ -88,19 +89,27 @@ function formatCompactMoney(
   const absolute = Math.abs(value);
 
   if (absolute >= 1_000_000_000_000) {
-    return `${prefix}${(value / 1_000_000_000_000).toFixed(2)}T`;
+    return `${prefix}${(
+      value / 1_000_000_000_000
+    ).toFixed(2)}T`;
   }
 
   if (absolute >= 1_000_000_000) {
-    return `${prefix}${(value / 1_000_000_000).toFixed(2)}B`;
+    return `${prefix}${(
+      value / 1_000_000_000
+    ).toFixed(2)}B`;
   }
 
   if (absolute >= 1_000_000) {
-    return `${prefix}${(value / 1_000_000).toFixed(2)}M`;
+    return `${prefix}${(
+      value / 1_000_000
+    ).toFixed(2)}M`;
   }
 
   if (absolute >= 1_000) {
-    return `${prefix}${(value / 1_000).toFixed(2)}K`;
+    return `${prefix}${(
+      value / 1_000
+    ).toFixed(2)}K`;
   }
 
   return `${prefix}${value.toFixed(2)}`;
@@ -200,7 +209,9 @@ function ErrorState({
 
       <div className="relative px-6 py-16 text-center">
         <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl border border-negative/20 bg-negative-muted text-negative">
-          <span className="font-mono text-lg">!</span>
+          <span className="font-mono text-lg">
+            !
+          </span>
         </div>
 
         <p className="mt-5 text-[10px] font-semibold uppercase tracking-[0.16em] text-muted">
@@ -294,7 +305,9 @@ function InsightCard({
   return (
     <div className="group bg-surface p-5 transition-colors hover:bg-surface-hover">
       <div className="flex items-center gap-2">
-        <span className={`h-1.5 w-1.5 rounded-full ${dotClass}`} />
+        <span
+          className={`h-1.5 w-1.5 rounded-full ${dotClass}`}
+        />
 
         <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted">
           {label}
@@ -324,9 +337,10 @@ function EmptyPositionsState() {
       </h3>
 
       <p className="mx-auto mt-2 max-w-md text-xs leading-5 text-muted">
-        Add portfolio transactions to build your holdings and unlock
-        portfolio valuation, allocation, diversification, and risk
-        analytics.
+        Add portfolio transactions to build
+        your holdings and unlock portfolio
+        valuation, allocation,
+        diversification, and risk analytics.
       </p>
     </div>
   );
@@ -342,41 +356,44 @@ export function PortfolioWorkspace() {
   const [error, setError] =
     useState<string | null>(null);
 
-  const loadPortfolio = async () => {
-    try {
-      setLoading(true);
-      setError(null);
+  const loadPortfolio = useCallback(
+    async () => {
+      try {
+        setLoading(true);
+        setError(null);
 
-      const response = await fetch(
-        `/api/portfolio/${encodeURIComponent(
-          defaultPortfolioId,
-        )}/positions`,
-        {
-          cache: "no-store",
-        },
-      );
-
-      const payload =
-        (await response.json()) as PortfolioResponse;
-
-      if (!response.ok) {
-        throw new Error(
-          payload.error ??
-            "Portfolio could not be loaded.",
+        const response = await fetch(
+          `/api/portfolio/${encodeURIComponent(
+            defaultPortfolioId,
+          )}/positions`,
+          {
+            cache: "no-store",
+          },
         );
-      }
 
-      setPortfolio(payload);
-    } catch (requestError) {
-      setError(
-        requestError instanceof Error
-          ? requestError.message
-          : "Unable to load portfolio.",
-      );
-    } finally {
-      setLoading(false);
-    }
-  };
+        const payload =
+          (await response.json()) as PortfolioResponse;
+
+        if (!response.ok) {
+          throw new Error(
+            payload.error ??
+              "Portfolio could not be loaded.",
+          );
+        }
+
+        setPortfolio(payload);
+      } catch (requestError) {
+        setError(
+          requestError instanceof Error
+            ? requestError.message
+            : "Unable to load portfolio.",
+        );
+      } finally {
+        setLoading(false);
+      }
+    },
+    [],
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -436,12 +453,19 @@ export function PortfolioWorkspace() {
     };
   }, []);
 
-  const positions =
-    portfolio?.positions ?? [];
+  /*
+   * Memoizing this derived array fixes the
+   * exhaustive-deps warning and also avoids
+   * creating a new array on every render.
+   */
+  const positions = useMemo(
+    () => portfolio?.positions ?? [],
+    [portfolio?.positions],
+  );
 
   const currency =
-    portfolio?.portfolio
-      ?.baseCurrency ?? "USD";
+    portfolio?.portfolio?.baseCurrency ??
+    "USD";
 
   const totals = useMemo(() => {
     const marketValue = positions.reduce(
@@ -507,23 +531,37 @@ export function PortfolioWorkspace() {
   const largestPosition =
     allocation[0] ?? null;
 
-  const positivePositions = positions.filter(
-    (position) =>
-      position.unrealizedPnL !== null &&
-      position.unrealizedPnL > 0,
-  ).length;
+  const positivePositions = useMemo(
+    () =>
+      positions.filter(
+        (position) =>
+          position.unrealizedPnL !== null &&
+          position.unrealizedPnL > 0,
+      ).length,
+    [positions],
+  );
 
-  const negativePositions = positions.filter(
-    (position) =>
-      position.unrealizedPnL !== null &&
-      position.unrealizedPnL < 0,
-  ).length;
+  const negativePositions = useMemo(
+    () =>
+      positions.filter(
+        (position) =>
+          position.unrealizedPnL !== null &&
+          position.unrealizedPnL < 0,
+      ).length,
+    [positions],
+  );
 
-  const valuedPositions = positions.filter(
-    (position) =>
-      position.marketValue !== null &&
-      Number.isFinite(position.marketValue),
-  ).length;
+  const valuedPositions = useMemo(
+    () =>
+      positions.filter(
+        (position) =>
+          position.marketValue !== null &&
+          Number.isFinite(
+            position.marketValue,
+          ),
+      ).length,
+    [positions],
+  );
 
   if (loading) {
     return <LoadingState />;
@@ -586,8 +624,7 @@ export function PortfolioWorkspace() {
           label="Base Currency"
           value={currency}
           description={
-            portfolio?.portfolio
-              ?.name ??
+            portfolio?.portfolio?.name ??
             "Default portfolio"
           }
           eyebrow="Portfolio"
@@ -612,7 +649,8 @@ export function PortfolioWorkspace() {
             </h2>
 
             <p className="mt-1 text-xs text-muted">
-              Current portfolio exposure and provider-backed valuation.
+              Current portfolio exposure and
+              provider-backed valuation.
             </p>
           </div>
 
@@ -661,7 +699,7 @@ export function PortfolioWorkspace() {
 
               <tbody>
                 {positions.map(
-                  (position) => {
+                  (position, index) => {
                     const weight =
                       getPositionWeight(
                         position,
@@ -670,7 +708,7 @@ export function PortfolioWorkspace() {
 
                     return (
                       <tr
-                        key={position.symbol}
+                        key={`${position.symbol}-${index}`}
                         className="group transition-colors hover:bg-surface-hover"
                       >
                         <td>
@@ -698,7 +736,10 @@ export function PortfolioWorkspace() {
                           {weight !== null ? (
                             <div className="inline-flex min-w-[86px] flex-col items-end gap-1">
                               <span className="font-mono text-xs text-muted-strong">
-                                {weight.toFixed(1)}%
+                                {weight.toFixed(
+                                  1,
+                                )}
+                                %
                               </span>
 
                               <span className="h-1 w-16 overflow-hidden rounded-full bg-surface-hover">
@@ -796,8 +837,8 @@ export function PortfolioWorkspace() {
                   </h2>
 
                   <p className="mt-1 text-xs leading-5 text-muted">
-                    Current position weights based on available market
-                    values.
+                    Current position weights based
+                    on available market values.
                   </p>
                 </div>
 
@@ -825,7 +866,10 @@ export function PortfolioWorkspace() {
                         </p>
 
                         <p className="mt-2 font-mono text-sm font-semibold text-foreground">
-                          {largestPosition.position.symbol}
+                          {
+                            largestPosition
+                              .position.symbol
+                          }
                         </p>
                       </div>
 
@@ -836,7 +880,9 @@ export function PortfolioWorkspace() {
 
                         <p className="mt-1 font-mono text-xs text-muted-strong">
                           {formatMoney(
-                            largestPosition.position.marketValue,
+                            largestPosition
+                              .position
+                              .marketValue,
                             currency,
                           )}
                         </p>
@@ -856,17 +902,20 @@ export function PortfolioWorkspace() {
                     </div>
 
                     <p className="mt-3 text-[11px] leading-5 text-muted">
-                      The largest currently valued position represents{" "}
+                      The largest currently
+                      valued position represents{" "}
                       {largestPosition.weight.toFixed(
                         1,
                       )}
-                      % of portfolio market value.
+                      % of portfolio market
+                      value.
                     </p>
                   </>
                 ) : (
                   <p className="mt-4 text-xs text-muted">
-                    Allocation cannot be calculated until market values
-                    are available.
+                    Allocation cannot be calculated
+                    until market values are
+                    available.
                   </p>
                 )}
               </div>
@@ -881,7 +930,7 @@ export function PortfolioWorkspace() {
                         weight,
                       }) => (
                         <div
-                          key={position.symbol}
+                          key={`${position.symbol}-${position.marketValue ?? "unvalued"}`}
                           className="group"
                         >
                           <div className="flex items-center justify-between gap-4">
@@ -920,7 +969,8 @@ export function PortfolioWorkspace() {
 
                   {allocation.length > 6 ? (
                     <p className="pt-1 text-[10px] text-muted">
-                      Showing the six largest valued positions.
+                      Showing the six largest
+                      valued positions.
                     </p>
                   ) : null}
                 </div>
