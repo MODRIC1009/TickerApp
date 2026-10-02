@@ -2,7 +2,7 @@
 
 A full-stack **global equity intelligence and quantitative analytics platform** built as a TypeScript monorepo. TickerApp combines market-data ingestion, reusable analytics, portfolio intelligence, strategy/backtesting tools, quantitative risk scoring, and a Next.js product experience.
 
-> **Status:** Phase 6 — Product Experience is implemented on `codex/ticker-phase-06-product-experience`.
+> **Status:** Phase 6 is complete on `main`, with production hardening for search, market-data caching, provider rate limits, portfolio initialization, and regression coverage.
 
 ## Product vision
 
@@ -101,6 +101,10 @@ The application keeps provider-specific behavior behind the market-data abstract
 - Market-session status and trading calendars.
 - Provider health/status reporting.
 - Historical interval and date-range validation.
+- Fast local catalog search before consuming provider search quota.
+- Search-result normalization and deduplication.
+- Short-lived request caching and in-flight request coalescing.
+- Stale quote recovery when the external provider is temporarily rate limited.
 
 ### Quantitative analytics
 
@@ -171,6 +175,24 @@ Risk outputs are deliberately explainable and include provenance such as provide
 
 ---
 
+## Production hardening
+
+The current `main` branch includes the Phase 6 product implementation plus follow-up hardening based on real runtime behavior:
+
+- Global search prefers the canonical local catalog for known instruments, avoiding unnecessary provider latency and quota consumption.
+- Provider search results are normalized and deduplicated before reaching the UI.
+- Common exchange identifiers and provider exchange names are mapped to canonical exchange IDs.
+- Search requests are cached briefly and concurrent identical requests are coalesced.
+- Market-data requests use bounded cache windows and can return stale cached quotes during provider rate limiting when a usable quote already exists.
+- Known catalog instruments can be resolved without spending a provider request.
+- The default portfolio is initialized for the product workspace instead of producing an avoidable missing-portfolio state.
+- Regression tests cover search normalization, provider caching/rate-limit behavior, and core product flows.
+- GitHub Actions runs typecheck, lint, tests, and production build on `main`, development branches, and pull requests.
+
+External-provider availability remains an external dependency. If a provider quota is exhausted and no cached data exists, the UI intentionally reports the unavailable-data state rather than fabricating a quote or historical series.
+
+---
+
 ## Monorepo commands
 
 Prerequisites:
@@ -233,6 +255,8 @@ See `apps/web/.env.example` for the supported application environment variables.
 
 Production intentionally requires an explicit `MARKET_DATA_PROVIDER` configuration rather than silently falling back to demo data.
 
+If Twelve Data is rate limited, TickerApp will use eligible cached data when available. It will not manufacture missing market data; a provider-unavailable state is shown when neither live nor cached data is usable.
+
 ---
 
 ## API surface
@@ -267,6 +291,11 @@ Tests focus on deterministic quantitative behavior and important edge cases, inc
 - VaR/CVaR availability
 - explainable risk-component contributions
 - weighted risk-score consistency
+- provider response normalization
+- exchange resolution
+- market-data cache expiry and stale-cache recovery
+- search-result deduplication
+- portfolio initialization and valuation flows
 
 The goal is to keep the financial calculations deterministic, testable, and independent from the web UI.
 
