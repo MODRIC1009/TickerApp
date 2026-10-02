@@ -88,9 +88,10 @@ interface CacheEntry<T> {
   expiresAt: number;
 }
 
-const SEARCH_CACHE_TTL_MS = 30_000;
-const QUOTE_CACHE_TTL_MS = 5_000;
-const HISTORICAL_CACHE_TTL_MS = 60_000;
+const SEARCH_CACHE_TTL_MS = 5 * 60_000;
+const QUOTE_CACHE_TTL_MS = 60_000;
+const HISTORICAL_CACHE_TTL_MS = 6 * 60 * 60_000;
+const STALE_CACHE_MAX_AGE_MS = 24 * 60 * 60_000;
 
 export class TwelveDataProvider
   implements MarketDataProvider
@@ -116,6 +117,7 @@ export class TwelveDataProvider
     string,
     Promise<unknown>
   >();
+  private rateLimitedUntil = 0;
 
   constructor(
     options: TwelveDataProviderOptions,
@@ -173,9 +175,14 @@ export class TwelveDataProvider
     }
 
     if (response.status === 429) {
+      this.rateLimitedUntil = Math.max(
+        this.rateLimitedUntil,
+        Date.now() + 61_000,
+      );
+
       throw new MarketDataError(
         "rate_limited",
-        "Twelve Data API rate limit exceeded. Cached market data will be used when available; otherwise try again after the provider quota resets.",
+        "Twelve Data API rate limit exceeded. Cached market data will be used when available; the provider quota resets every minute.",
         {
           providerId: this.id,
         },
@@ -215,15 +222,36 @@ export class TwelveDataProvider
     endpoint: string,
     params: Record<string, string>,
   ): Promise<T> {
+    const now = Date.now();
     const cached = this.cache.get(cacheKey) as
       | CacheEntry<T>
       | undefined;
 
     if (
       cached &&
-      cached.expiresAt > Date.now()
+      cached.expiresAt > now
     ) {
       return cached.value;
+    }
+
+    if (
+      this.rateLimitedUntil > now
+    ) {
+      if (
+        cached &&
+        now - cached.expiresAt <=
+          STALE_CACHE_MAX_AGE_MS
+      ) {
+        return cached.value;
+      }
+
+      throw new MarketDataError(
+        "rate_limited",
+        "Twelve Data API is temporarily rate limited. Please retry after the provider quota resets.",
+        {
+          providerId: this.id,
+        },
+      );
     }
 
     const existing = this.inFlight.get(
@@ -239,12 +267,26 @@ export class TwelveDataProvider
       params,
     )
       .then((value) => {
+        this.rateLimitedUntil = 0;
         this.cache.set(cacheKey, {
           value,
           expiresAt:
             Date.now() + ttlMs,
         });
         return value;
+      })
+      .catch((error) => {
+        if (
+          error instanceof MarketDataError &&
+          error.code === "rate_limited" &&
+          cached &&
+          Date.now() - cached.expiresAt <=
+            STALE_CACHE_MAX_AGE_MS
+        ) {
+          return cached.value;
+        }
+
+        throw error;
       })
       .finally(() => {
         this.inFlight.delete(cacheKey);
@@ -323,9 +365,6 @@ export class TwelveDataProvider
       return normalizedResults;
     }
 
-    // Keep instrument discovery useful when the provider's discovery endpoint
-    // returns an empty result. This catalog is only a discovery fallback;
-    // quotes and historical prices still come exclusively from Twelve Data.
     const catalogQuery =
       normalizedQuery.toLowerCase();
 
@@ -351,13 +390,24 @@ export class TwelveDataProvider
   async getInstrument(
     symbol: string,
   ): Promise<Instrument | null> {
-    const results =
-      await this.searchInstruments(
-        symbol,
-      );
-
     const normalizedSymbol =
       symbol.trim().toUpperCase();
+
+    const catalogInstrument =
+      GLOBAL_INSTRUMENTS.find(
+        (instrument) =>
+          instrument.symbol.toUpperCase() ===
+          normalizedSymbol,
+      );
+
+    if (catalogInstrument) {
+      return catalogInstrument;
+    }
+
+    const results =
+      await this.searchInstruments(
+        normalizedSymbol,
+      );
 
     return (
       results.find(
@@ -459,16 +509,12 @@ export class TwelveDataProvider
       .map((bar) => {
         const open =
           this.toNumber(bar.open);
-
         const high =
           this.toNumber(bar.high);
-
         const low =
           this.toNumber(bar.low);
-
         const close =
           this.toNumber(bar.close);
-
         const volume =
           this.toNumber(bar.volume);
 
@@ -482,9 +528,7 @@ export class TwelveDataProvider
         }
 
         const timestamp =
-          new Date(
-            bar.datetime,
-          );
+          new Date(bar.datetime);
 
         if (
           Number.isNaN(
