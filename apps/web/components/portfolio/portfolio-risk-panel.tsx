@@ -147,7 +147,11 @@ export function PortfolioRiskPanel() {
   useEffect(() => {
     const controller = new AbortController();
 
-    void loadRisk(controller.signal);
+    queueMicrotask(() => {
+      if (!controller.signal.aborted) {
+        void loadRisk(controller.signal);
+      }
+    });
 
     return () => {
       controller.abort();

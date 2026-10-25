@@ -11,10 +11,6 @@ import type {
   ResearchResult,
 } from "@tickerapp/ai";
 
-import type {
-  AIResearchRequest,
-} from "../../../packages/ai/src/types";
-
 import { getAIConfig } from "./ai-config";
 
 class UnconfiguredAIProvider
@@ -28,9 +24,7 @@ class UnconfiguredAIProvider
     research: true,
   } as const;
 
-  async research(
-    _request: AIResearchRequest,
-  ): Promise<ResearchResult> {
+  async research(): Promise<ResearchResult> {
     throw new AIError(
       "provider_unavailable",
       "AI is not configured. Configure Ollama in apps/web/.env.local and restart TickerApp.",
