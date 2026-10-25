@@ -117,37 +117,37 @@ export class OpenAICompatibleProvider implements AIResearchProvider {
         : {}),
     };
 
-    let response: Response;
-
     try {
-      response = await fetch(
-        `${this.config.baseUrl.replace(/\/$/, "")}/chat/completions`,
-        {
-          method: "POST",
-          headers: {
-            "content-type": "application/json",
-            authorization: `Bearer ${this.config.apiKey}`,
+      let response: Response;
+
+      try {
+        response = await fetch(
+          `${this.config.baseUrl.replace(/\/$/, "")}/chat/completions`,
+          {
+            method: "POST",
+            headers: {
+              "content-type": "application/json",
+              authorization: `Bearer ${this.config.apiKey}`,
+            },
+            body: JSON.stringify(requestBody),
+            signal: controller.signal,
           },
-          body: JSON.stringify(requestBody),
-          signal: controller.signal,
-        },
-      );
-    } catch (error) {
-      const timedOut =
-        error instanceof Error && error.name === "AbortError";
+        );
+      } catch (error) {
+        const timedOut =
+          controller.signal.aborted ||
+          (error instanceof Error && error.name === "AbortError");
 
-      this.logAttempt(attempt, startedAt, "request_failed");
+        this.logAttempt(attempt, startedAt, "request_failed");
 
-      throw new AIError(
-        "provider_unavailable",
-        timedOut
-          ? `AI provider "${this.id}" timed out after ${timeoutMs} ms.`
-          : `AI provider "${this.id}" could not be reached.`,
-        { providerId: this.id, cause: error },
-      );
-    } finally {
-      clearTimeout(timeout);
-    }
+        throw new AIError(
+          "provider_unavailable",
+          timedOut
+            ? `AI provider "${this.id}" timed out after ${timeoutMs} ms.`
+            : `AI provider "${this.id}" could not be reached.`,
+          { providerId: this.id, cause: error },
+        );
+      }
 
     if (response.status === 429) {
       this.logAttempt(attempt, startedAt, "rate_limited");
@@ -177,6 +177,20 @@ export class OpenAICompatibleProvider implements AIResearchProvider {
     try {
       payload = (await response.json()) as ChatCompletionResponse;
     } catch (error) {
+      const timedOut =
+        controller.signal.aborted ||
+        (error instanceof Error && error.name === "AbortError");
+
+      if (timedOut) {
+        this.logAttempt(attempt, startedAt, "request_failed");
+
+        throw new AIError(
+          "provider_unavailable",
+          `AI provider "${this.id}" timed out after ${timeoutMs} ms.`,
+          { providerId: this.id, cause: error },
+        );
+      }
+
       this.logAttempt(attempt, startedAt, "invalid_api_response");
 
       throw new AIError(
@@ -229,9 +243,12 @@ export class OpenAICompatibleProvider implements AIResearchProvider {
       );
 
       return result;
-    } catch (error) {
-      this.logAttempt(attempt, startedAt, "schema_validation_failed");
-      throw error;
+      } catch (error) {
+        this.logAttempt(attempt, startedAt, "schema_validation_failed");
+        throw error;
+      }
+    } finally {
+      clearTimeout(timeout);
     }
   }
 
