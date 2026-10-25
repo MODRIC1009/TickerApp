@@ -204,7 +204,64 @@ it("passes an abort signal to fetch and supports a custom timeout", async () => 
   ).toHaveBeenCalledOnce();
 });
 
-it("maps an aborted request to provider_unavailable", async () => {
+it("keeps the timeout active while reading the response body", async () => {
+  const fetchMock = vi
+    .spyOn(globalThis, "fetch")
+    .mockImplementation(async (_input, init) => {
+      const response = new Response("{}", {
+        status: 200,
+        headers: {
+          "content-type": "application/json",
+        },
+      });
+
+      vi.spyOn(response, "json").mockImplementation(
+        () =>
+          new Promise((_, reject) => {
+            const signal = init?.signal;
+
+            if (!signal) {
+              reject(new Error("Abort signal was not provided."));
+              return;
+            }
+
+            signal.addEventListener(
+              "abort",
+              () => {
+                reject(
+                  new DOMException(
+                    "The operation was aborted.",
+                    "AbortError",
+                  ),
+                );
+              },
+              { once: true },
+            );
+          }),
+      );
+
+      return response;
+    });
+
+  const provider = new OpenAICompatibleProvider({
+    ...config,
+    timeoutMs: 10,
+  });
+
+  await expect(
+    provider.research({
+      input,
+      prompt: "Research AAPL.",
+    }),
+  ).rejects.toMatchObject({
+    code: "provider_unavailable",
+    providerId: "openai-compatible",
+  });
+
+  expect(fetchMock).toHaveBeenCalledOnce();
+});
+
+  it("maps an aborted request to provider_unavailable", async () => {
   vi
     .spyOn(globalThis, "fetch")
     .mockImplementation(
