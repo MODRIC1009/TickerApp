@@ -11,10 +11,6 @@ import type {
   ResearchResult,
 } from "@tickerapp/ai";
 
-import type {
-  AIResearchRequest,
-} from "../../../packages/ai/src/types";
-
 import { getAIConfig } from "./ai-config";
 
 class UnconfiguredAIProvider
