@@ -1,48 +1,47 @@
+
 import {
+  afterEach,
   describe,
   expect,
   it,
+  vi,
 } from "vitest";
 
-import {
-  GET,
-} from "./route";
+afterEach(() => {
+  vi.resetModules();
+  vi.unstubAllEnvs();
+
+  const globalForAI = globalThis as typeof globalThis & {
+    tickerAIContainer?: unknown;
+  };
+
+  delete globalForAI.tickerAIContainer;
+});
 
 describe("GET /api/ai/status", () => {
-  it("returns AI provider health", async () => {
-    const response =
-      await GET();
+  it("reports unavailable when AI is not configured", async () => {
+    vi.stubEnv("AI_PROVIDER", "");
+    vi.stubEnv("AI_API_KEY", "");
+    vi.stubEnv("AI_BASE_URL", "");
+    vi.stubEnv("AI_MODEL", "");
 
-    expect(response.status).toBe(
-      200,
-    );
+    const { GET } = await import("./route");
+    const response = await GET();
 
-    const body =
-      await response.json();
+    expect(response.status).toBe(200);
 
-    expect(body.data).toBeDefined();
+    const body = await response.json();
 
-    expect(body.data.status).toBe(
-      "healthy",
-    );
+    expect(body.data.status).toBe("unavailable");
+    expect(body.data.providers).toHaveLength(1);
 
-    expect(
-      body.data.providers,
-    ).toHaveLength(1);
-
-    expect(
-      body.data.providers[0],
-    ).toMatchObject({
-      providerId: "demo-ai",
-      providerName:
-        "TickerApp Demo AI",
-      model:
-        "deterministic-research-v1",
-      status: "healthy",
+    expect(body.data.providers[0]).toMatchObject({
+      providerId: "ai-unconfigured",
+      providerName: "AI Not Configured",
+      model: "none",
+      status: "unavailable",
     });
 
-    expect(
-      body.data.checkedAt,
-    ).toBeTruthy();
+    expect(body.data.checkedAt).toBeTruthy();
   });
 });

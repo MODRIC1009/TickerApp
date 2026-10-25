@@ -1,3 +1,4 @@
+
 import { AIError } from "@tickerapp/ai";
 
 export interface AIConfig {
@@ -16,8 +17,7 @@ function parseTimeout(
     return 30_000;
   }
 
-  const timeoutMs =
-    Number(value);
+  const timeoutMs = Number(value);
 
   if (
     !Number.isFinite(timeoutMs) ||
@@ -35,35 +35,23 @@ function parseTimeout(
 export function getAIConfig(
   env: Partial<NodeJS.ProcessEnv> = process.env,
 ): AIConfig {
-  const providerId =
-    env.AI_PROVIDER?.trim() ||
-    "demo-ai";
-
-  const apiKey =
-    env.AI_API_KEY?.trim() ||
-    "";
-
-  const baseUrl =
-    env.AI_BASE_URL?.trim() ||
-    "";
-
-  const model =
-    env.AI_MODEL?.trim() ||
-    "";
-
-  const providerName =
-    env.AI_PROVIDER_NAME?.trim() ||
-    "OpenAI Compatible AI";
-
   return {
-    providerId,
-    apiKey,
-    baseUrl,
-    model,
-    providerName,
-    timeoutMs:
-      parseTimeout(
-        env.AI_TIMEOUT_MS,
-      ),
+    // No configured provider means AI is unavailable,
+    // rather than silently using demo responses.
+    providerId:
+      env.AI_PROVIDER?.trim() ||
+      "unconfigured",
+    apiKey:
+      env.AI_API_KEY?.trim() || "",
+    baseUrl:
+      env.AI_BASE_URL?.trim() || "",
+    model:
+      env.AI_MODEL?.trim() || "",
+    providerName:
+      env.AI_PROVIDER_NAME?.trim() ||
+      "OpenAI Compatible AI",
+    timeoutMs: parseTimeout(
+      env.AI_TIMEOUT_MS,
+    ),
   };
 }

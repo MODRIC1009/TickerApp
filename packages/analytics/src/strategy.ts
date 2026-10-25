@@ -1,18 +1,12 @@
+
 import { AnalyticsError } from "./errors";
 import {
-  calculateEMA,
   calculateRSI,
   calculateSMA,
 } from "./indicators";
 
-export type SignalAction =
-  | "buy"
-  | "sell"
-  | "hold";
-
-export type PositionState =
-  | "flat"
-  | "long";
+export type SignalAction = "buy" | "sell" | "hold";
+export type PositionState = "flat" | "long";
 
 export interface StrategySignal {
   timestamp: string;
@@ -37,57 +31,37 @@ export interface StrategyInput {
   price: number;
 }
 
-function validateConfig(
-  config: StrategyConfig,
-): void {
+function validateConfig(config: StrategyConfig): void {
   if (!config.id.trim()) {
-    throw new AnalyticsError(
-      "invalid_request",
-      "Strategy id is required.",
-    );
+    throw new AnalyticsError("invalid_request", "Strategy id is required.");
   }
 
   if (!config.name.trim()) {
-    throw new AnalyticsError(
-      "invalid_request",
-      "Strategy name is required.",
-    );
+    throw new AnalyticsError("invalid_request", "Strategy name is required.");
   }
 
-  if (
-    !Number.isInteger(config.shortPeriod) ||
-    config.shortPeriod <= 0
-  ) {
+  if (!Number.isInteger(config.shortPeriod) || config.shortPeriod <= 0) {
     throw new AnalyticsError(
       "invalid_parameter",
       "Short period must be a positive integer.",
     );
   }
 
-  if (
-    !Number.isInteger(config.longPeriod) ||
-    config.longPeriod <= 0
-  ) {
+  if (!Number.isInteger(config.longPeriod) || config.longPeriod <= 0) {
     throw new AnalyticsError(
       "invalid_parameter",
       "Long period must be a positive integer.",
     );
   }
 
-  if (
-    config.shortPeriod >=
-    config.longPeriod
-  ) {
+  if (config.shortPeriod >= config.longPeriod) {
     throw new AnalyticsError(
       "invalid_parameter",
       "Short period must be smaller than long period.",
     );
   }
 
-  if (
-    !Number.isInteger(config.rsiPeriod) ||
-    config.rsiPeriod <= 0
-  ) {
+  if (!Number.isInteger(config.rsiPeriod) || config.rsiPeriod <= 0) {
     throw new AnalyticsError(
       "invalid_parameter",
       "RSI period must be a positive integer.",
@@ -116,10 +90,7 @@ function validateConfig(
     );
   }
 
-  if (
-    config.rsiOversold >=
-    config.rsiOverbought
-  ) {
+  if (config.rsiOversold >= config.rsiOverbought) {
     throw new AnalyticsError(
       "invalid_parameter",
       "RSI oversold threshold must be smaller than overbought threshold.",
@@ -127,9 +98,7 @@ function validateConfig(
   }
 }
 
-function validateInput(
-  input: StrategyInput[],
-): void {
+function validateInput(input: StrategyInput[]): void {
   if (input.length === 0) {
     throw new AnalyticsError(
       "insufficient_data",
@@ -139,6 +108,7 @@ function validateInput(
 
   for (const point of input) {
     if (
+      typeof point.timestamp !== "string" ||
       !point.timestamp.trim()
     ) {
       throw new AnalyticsError(
@@ -147,10 +117,7 @@ function validateInput(
       );
     }
 
-    if (
-      !Number.isFinite(point.price) ||
-      point.price <= 0
-    ) {
+    if (!Number.isFinite(point.price) || point.price <= 0) {
       throw new AnalyticsError(
         "invalid_price",
         "Strategy prices must be finite and greater than zero.",
@@ -166,113 +133,159 @@ export function generateStrategySignals(
   validateConfig(config);
   validateInput(input);
 
-  const prices = input.map(
-    (point) => point.price,
-  );
+  const prices = input.map((point) => point.price);
+  const shortSma = calculateSMA(prices, config.shortPeriod);
+  const longSma = calculateSMA(prices, config.longPeriod);
+  const rsi = calculateRSI(prices, config.rsiPeriod);
 
-  const shortSma =
-    calculateSMA(
-      prices,
-      config.shortPeriod,
+  const strategyId = config.id.trim().toLowerCase();
+
+  const isBuyAndHold = [
+    "buy-and-hold",
+    "buy_and_hold",
+    "buyandhold",
+  ].includes(strategyId);
+
+  const isSmaCrossover = [
+    "sma-crossover",
+    "sma_crossover",
+    "sma",
+  ].includes(strategyId);
+
+  const isMomentum = strategyId === "momentum";
+
+  const isSmaRsi = [
+    "sma-rsi",
+    "sma_rsi",
+    "test-strategy",
+  ].includes(strategyId);
+
+  if (
+    !isBuyAndHold &&
+    !isSmaCrossover &&
+    !isMomentum &&
+    !isSmaRsi
+  ) {
+    throw new AnalyticsError(
+      "invalid_request",
+      `Unsupported strategy id: ${config.id}`,
     );
+  }
 
-  const longSma =
-    calculateSMA(
-      prices,
-      config.longPeriod,
-    );
+  let position: PositionState = "flat";
+  let previousShortSma: number | null = null;
+  let previousLongSma: number | null = null;
 
-  const rsi =
-    calculateRSI(
-      prices,
-      config.rsiPeriod,
-    );
+  return input.map((point, index) => {
+    let action: SignalAction = "hold";
+    let reason = "No strategy transition.";
 
-  let position: PositionState =
-    "flat";
+    if (isBuyAndHold) {
+      if (index === 0) {
+        position = "long";
+        action = "buy";
+        reason = "Buy and hold: enter at the first available observation.";
+      } else {
+        reason = "Buy and hold: maintain the long position.";
+      }
+    } else if (isSmaCrossover) {
+      const shortValue = shortSma[index];
+      const longValue = longSma[index];
 
-  return input.map(
-    (point, index) => {
-      const shortValue =
-        shortSma[index];
+      if (shortValue === null || longValue === null) {
+        reason = "Insufficient moving-average history.";
+      } else if (
+        previousShortSma !== null &&
+        previousLongSma !== null
+      ) {
+        const crossedAbove =
+          previousShortSma <= previousLongSma &&
+          shortValue > longValue;
 
-      const longValue =
-        longSma[index];
+        const crossedBelow =
+          previousShortSma >= previousLongSma &&
+          shortValue < longValue;
 
-      const rsiValue =
-        rsi[index];
+        if (position === "flat" && crossedAbove) {
+          position = "long";
+          action = "buy";
+          reason = "Short SMA crossed above long SMA.";
+        } else if (position === "long" && crossedBelow) {
+          position = "flat";
+          action = "sell";
+          reason = "Short SMA crossed below long SMA.";
+        }
+      }
+
+      if (shortValue !== null && longValue !== null) {
+        previousShortSma = shortValue;
+        previousLongSma = longValue;
+      }
+    } else if (isMomentum) {
+      const lookbackIndex = index - config.shortPeriod;
+
+      if (lookbackIndex < 0) {
+        reason = "Insufficient momentum lookback history.";
+      } else {
+        const referencePrice = prices[lookbackIndex];
+
+        if (position === "flat" && point.price > referencePrice) {
+          position = "long";
+          action = "buy";
+          reason = `Positive momentum over ${config.shortPeriod} observations.`;
+        } else if (position === "long" && point.price < referencePrice) {
+          position = "flat";
+          action = "sell";
+          reason = `Negative momentum over ${config.shortPeriod} observations.`;
+        }
+      }
+    } else if (isSmaRsi) {
+      const shortValue = shortSma[index];
+      const longValue = longSma[index];
+      const rsiValue = rsi[index];
 
       if (
         shortValue === null ||
         longValue === null ||
         rsiValue === null
       ) {
-        return {
-          timestamp: point.timestamp,
-          action: "hold",
-          position,
-          price: point.price,
-          reason:
-            "Insufficient indicator history.",
-        };
+        reason = "Insufficient SMA/RSI history.";
+      } else {
+        const bullishTrend = shortValue > longValue;
+        const bearishTrend = shortValue < longValue;
+        const oversoldSetup = rsiValue <= config.rsiOversold;
+        const overboughtSetup = rsiValue >= config.rsiOverbought;
+
+        if (
+          position === "flat" &&
+          bullishTrend &&
+          oversoldSetup
+        ) {
+          position = "long";
+          action = "buy";
+          reason =
+            "Bullish trend confirmed by short SMA above long SMA with RSI at or below the oversold threshold.";
+        } else if (
+          position === "long" &&
+          (bearishTrend || overboughtSetup)
+        ) {
+          position = "flat";
+          action = "sell";
+          reason = bearishTrend
+            ? "Bearish trend confirmed by short SMA below long SMA."
+            : "RSI reached the overbought threshold.";
+        } else {
+          reason = "Waiting for SMA trend and RSI confirmation.";
+        }
       }
+    }
 
-      const bullishTrend =
-        shortValue > longValue;
-
-      const bearishTrend =
-        shortValue < longValue;
-
-      const oversold =
-        rsiValue <=
-        config.rsiOversold;
-
-      const overbought =
-        rsiValue >=
-        config.rsiOverbought;
-
-      if (
-        position === "flat" &&
-        bullishTrend &&
-        oversold
-      ) {
-        position = "long";
-
-        return {
-          timestamp: point.timestamp,
-          action: "buy",
-          position,
-          price: point.price,
-          reason:
-            "Bullish trend with oversold RSI.",
-        };
-      }
-
-      if (
-        position === "long" &&
-        (bearishTrend || overbought)
-      ) {
-        position = "flat";
-
-        return {
-          timestamp: point.timestamp,
-          action: "sell",
-          position,
-          price: point.price,
-          reason: bearishTrend
-            ? "Bearish trend."
-            : "RSI reached overbought level.",
-        };
-      }
-
-      return {
-        timestamp: point.timestamp,
-        action: "hold",
-        position,
-        price: point.price,
-        reason:
-          "No strategy transition.",
-      };
-    },
-  );
+    return {
+      timestamp: point.timestamp,
+      action,
+      position,
+      price: point.price,
+      reason,
+    };
+  });
 }

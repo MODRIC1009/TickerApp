@@ -1,23 +1,20 @@
+
 import {
+  afterEach,
+  beforeEach,
   describe,
   expect,
   it,
+  vi,
 } from "vitest";
 
-import {
-  POST,
-} from "./route";
-
-function createRequest(
-  body: unknown,
-): Request {
+function createRequest(body: unknown): Request {
   return new Request(
     "http://localhost/api/ai/research",
     {
       method: "POST",
       headers: {
-        "content-type":
-          "application/json",
+        "content-type": "application/json",
       },
       body: JSON.stringify(body),
     },
@@ -33,36 +30,52 @@ const instrument = {
   assetClass: "equity" as const,
 };
 
+beforeEach(() => {
+  vi.resetModules();
+  vi.stubEnv("AI_PROVIDER", "demo-ai");
+  vi.stubEnv("AI_API_KEY", "");
+  vi.stubEnv("AI_BASE_URL", "");
+  vi.stubEnv("AI_MODEL", "");
+
+  const globalForAI = globalThis as typeof globalThis & {
+    tickerAIContainer?: unknown;
+  };
+
+  delete globalForAI.tickerAIContainer;
+});
+
+afterEach(() => {
+  vi.resetModules();
+  vi.unstubAllEnvs();
+
+  const globalForAI = globalThis as typeof globalThis & {
+    tickerAIContainer?: unknown;
+  };
+
+  delete globalForAI.tickerAIContainer;
+});
+
 describe("POST /api/ai/research", () => {
-  it("returns structured research", async () => {
+  it("returns structured research in explicitly configured demo mode", async () => {
+    const { POST } = await import("./route");
     const response = await POST(
       createRequest({
         instrument,
-        question:
-          "What should I research about this company?",
+        question: "What should I research about this company?",
       }) as never,
     );
 
-    expect(response.status).toBe(
-      200,
-    );
+    expect(response.status).toBe(200);
 
-    const body =
-      await response.json();
+    const body = await response.json();
 
-    expect(body.data).toBeDefined();
-    expect(
-      body.data.instrument.symbol,
-    ).toBe("AAPL");
-    expect(
-      body.data.providerId,
-    ).toBe("demo-ai");
-    expect(
-      body.data.thesis,
-    ).toBeTruthy();
+    expect(body.data.instrument.symbol).toBe("AAPL");
+    expect(body.data.providerId).toBe("demo-ai");
+    expect(body.data.thesis).toBeTruthy();
   });
 
   it("accepts quote data", async () => {
+    const { POST } = await import("./route");
     const response = await POST(
       createRequest({
         instrument,
@@ -71,57 +84,43 @@ describe("POST /api/ai/research", () => {
           change: 2,
           changePercent: 1,
           volume: 1000000,
-          marketCap:
-            3000000000000,
-          timestamp:
-            "2026-09-06T10:00:00.000Z",
+          marketCap: 3000000000000,
+          timestamp: "2026-09-06T10:00:00.000Z",
         },
       }) as never,
     );
 
-    expect(response.status).toBe(
-      200,
-    );
+    expect(response.status).toBe(200);
 
-    const body =
-      await response.json();
+    const body = await response.json();
 
     expect(
-      body.data.sections
-        .find(
-          (section: {
-            title: string;
-          }) =>
-            section.title ===
-            "Market Context",
-        )
-        ?.summary,
+      body.data.sections.find(
+        (section: { title: string }) =>
+          section.title === "Market Context",
+      )?.summary,
     ).toContain("200");
   });
 
   it("returns 400 when the instrument is missing", async () => {
+    const { POST } = await import("./route");
     const response = await POST(
       createRequest({
-        question:
-          "Research this company.",
+        question: "Research this company.",
       }) as never,
     );
 
-    expect(response.status).toBe(
-      400,
-    );
+    expect(response.status).toBe(400);
 
-    await expect(
-      response.json(),
-    ).resolves.toEqual({
-      error:
-        "Research instrument is required.",
+    await expect(response.json()).resolves.toEqual({
+      error: "Research instrument is required.",
       code: "invalid_request",
       providerId: null,
     });
   });
 
   it("returns 400 for an empty research question", async () => {
+    const { POST } = await import("./route");
     const response = await POST(
       createRequest({
         instrument,
@@ -129,15 +128,10 @@ describe("POST /api/ai/research", () => {
       }) as never,
     );
 
-    expect(response.status).toBe(
-      400,
-    );
+    expect(response.status).toBe(400);
 
-    await expect(
-      response.json(),
-    ).resolves.toEqual({
-      error:
-        "Research question cannot be empty when provided.",
+    await expect(response.json()).resolves.toEqual({
+      error: "Research question cannot be empty when provided.",
       code: "invalid_request",
       providerId: null,
     });

@@ -1,18 +1,8 @@
-import {
-  DemoAIProvider,
-} from "./providers/demo-ai-provider";
 
-import {
-  AIProviderRegistry,
-} from "./provider-registry";
-
-import {
-  ResearchEngine,
-} from "./research-engine";
-
-import type {
-  AIResearchProvider,
-} from "./types";
+import { DemoAIProvider } from "./providers/demo-ai-provider";
+import { AIProviderRegistry } from "./provider-registry";
+import { ResearchEngine } from "./research-engine";
+import type { AIResearchProvider } from "./types";
 
 export interface AIContainer {
   registry: AIProviderRegistry;
@@ -27,40 +17,29 @@ export interface AIContainerConfig {
 export function createAIContainer(
   config: AIContainerConfig = {},
 ): AIContainer {
-  const registry =
-    new AIProviderRegistry();
+  const registry = new AIProviderRegistry();
+  const configuredProviders = config.providers ?? [];
 
-  registry.register(
-    new DemoAIProvider(),
-  );
+  const defaultProviderId =
+    config.defaultProviderId?.trim() ||
+    configuredProviders[0]?.id ||
+    "demo-ai";
 
-  for (
-    const provider of
-    config.providers ?? []
-  ) {
-    if (
-      provider.id ===
-      "demo-ai"
-    ) {
+  if (defaultProviderId === "demo-ai") {
+    registry.register(new DemoAIProvider());
+  }
+
+  for (const provider of configuredProviders) {
+    if (provider.id === "demo-ai") {
       throw new Error(
         'The "demo-ai" provider is registered automatically.',
       );
     }
 
-    registry.register(
-      provider,
-    );
+    registry.register(provider);
   }
 
-  const defaultProviderId =
-    config.defaultProviderId?.trim() ||
-    "demo-ai";
-
-  if (
-    !registry.has(
-      defaultProviderId,
-    )
-  ) {
+  if (!registry.has(defaultProviderId)) {
     throw new Error(
       `Configured AI provider "${defaultProviderId}" is not registered.`,
     );
@@ -68,10 +47,9 @@ export function createAIContainer(
 
   return {
     registry,
-    researchEngine:
-      new ResearchEngine(
-        registry,
-        defaultProviderId,
-      ),
+    researchEngine: new ResearchEngine(
+      registry,
+      defaultProviderId,
+    ),
   };
 }

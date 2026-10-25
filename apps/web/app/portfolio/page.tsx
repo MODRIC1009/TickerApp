@@ -1,4 +1,6 @@
+
 import { PortfolioWorkspace } from "@/components/portfolio/portfolio-workspace";
+import { PortfolioRiskPanel } from "@/components/portfolio/portfolio-risk-panel";
 
 export default function PortfolioPage() {
   return (
@@ -18,7 +20,10 @@ export default function PortfolioPage() {
         </p>
       </section>
 
-      <PortfolioWorkspace />
+      <div className="space-y-6">
+        <PortfolioWorkspace />
+        <PortfolioRiskPanel />
+      </div>
     </div>
   );
 }

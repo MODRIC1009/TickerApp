@@ -1,39 +1,46 @@
+
 import {
+  afterEach,
   describe,
   expect,
   it,
+  vi,
 } from "vitest";
 
-import {
-  GET,
-} from "./route";
+afterEach(() => {
+  vi.resetModules();
+  vi.unstubAllEnvs();
+
+  const globalForAI = globalThis as typeof globalThis & {
+    tickerAIContainer?: unknown;
+  };
+
+  delete globalForAI.tickerAIContainer;
+});
 
 describe("GET /api/ai/providers", () => {
-  it("returns registered AI providers", async () => {
-    const response =
-      await GET();
+  it("returns the unconfigured provider when AI is not configured", async () => {
+    vi.stubEnv("AI_PROVIDER", "");
+    vi.stubEnv("AI_API_KEY", "");
+    vi.stubEnv("AI_BASE_URL", "");
+    vi.stubEnv("AI_MODEL", "");
 
-    expect(response.status).toBe(
-      200,
-    );
+    const { GET } = await import("./route");
+    const response = await GET();
 
-    const body =
-      await response.json();
+    expect(response.status).toBe(200);
 
-    expect(
-      body.data,
-    ).toHaveLength(1);
+    const body = await response.json();
 
-    expect(
-      body.data[0],
-    ).toEqual({
-      id: "demo-ai",
-      name: "TickerApp Demo AI",
-      model:
-        "deterministic-research-v1",
-      capabilities: {
-        research: true,
+    expect(body.data).toEqual([
+      {
+        id: "ai-unconfigured",
+        name: "AI Not Configured",
+        model: "none",
+        capabilities: {
+          research: true,
+        },
       },
-    });
+    ]);
   });
 });

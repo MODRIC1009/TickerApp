@@ -1,7 +1,9 @@
+
 import {
   AnalyticsError,
   runBacktest,
   type BacktestConfig,
+  type StrategyConfig,
   type StrategyInput,
 } from "@tickerapp/analytics";
 import { NextResponse } from "next/server";
@@ -24,36 +26,90 @@ function isRecord(
 function isStrategyInputArray(
   value: unknown,
 ): value is StrategyInput[] {
-  if (!Array.isArray(value)) {
-    return false;
-  }
+  return (
+    Array.isArray(value) &&
+    value.every(
+      (point) =>
+        isRecord(point) &&
+        typeof point.timestamp === "string" &&
+        typeof point.price === "number",
+    )
+  );
+}
 
-  return value.every((point) => {
-    if (!isRecord(point)) {
-      return false;
-    }
-
-    return (
-      typeof point.timestamp ===
-        "string" &&
-      typeof point.price === "number"
-    );
-  });
+function isStrategyConfig(
+  value: unknown,
+): value is StrategyConfig {
+  return (
+    isRecord(value) &&
+    typeof value.id === "string" &&
+    typeof value.name === "string" &&
+    typeof value.shortPeriod === "number" &&
+    typeof value.longPeriod === "number" &&
+    typeof value.rsiPeriod === "number" &&
+    typeof value.rsiOversold === "number" &&
+    typeof value.rsiOverbought === "number"
+  );
 }
 
 function isBacktestConfig(
   value: unknown,
 ): value is BacktestConfig {
-  if (!isRecord(value)) {
-    return false;
-  }
-
-  return isRecord(value.strategy);
+  return (
+    isRecord(value) &&
+    typeof value.symbol === "string" &&
+    typeof value.initialCapital === "number" &&
+    isStrategyConfig(value.strategy)
+  );
 }
 
-function validateRequestBody(
-  value: unknown,
-): BacktestRequestBody {
+function mapLegacyStrategy(strategy: unknown): StrategyConfig {
+  const common = {
+    shortPeriod: 10,
+    longPeriod: 30,
+    rsiPeriod: 14,
+    rsiOversold: 30,
+    rsiOverbought: 70,
+  };
+
+  switch (strategy) {
+    case "buy-and-hold":
+      return {
+        id: "buy-and-hold",
+        name: "Buy and Hold",
+        ...common,
+      };
+
+    case "sma-crossover":
+      return {
+        id: "sma-crossover",
+        name: "SMA Crossover",
+        ...common,
+      };
+
+    case "momentum":
+      return {
+        id: "momentum",
+        name: "Momentum",
+        ...common,
+      };
+
+    case "sma-rsi":
+      return {
+        id: "sma-rsi",
+        name: "SMA RSI",
+        ...common,
+      };
+
+    default:
+      throw new AnalyticsError(
+        "invalid_request",
+        "Select a supported backtest strategy.",
+      );
+  }
+}
+
+function validateRequestBody(value: unknown): BacktestRequestBody {
   if (!isRecord(value)) {
     throw new AnalyticsError(
       "invalid_request",
@@ -62,105 +118,120 @@ function validateRequestBody(
   }
 
   if (
-    !isStrategyInputArray(
-      value.input,
-    )
+    isStrategyInputArray(value.input) &&
+    isBacktestConfig(value.config)
   ) {
-    throw new AnalyticsError(
-      "invalid_request",
-      "Input must be an array of timestamped price observations.",
-    );
+    return {
+      input: value.input,
+      config: value.config,
+    };
   }
 
   if (
-    !isBacktestConfig(
-      value.config,
-    )
+    typeof value.symbol === "string" &&
+    typeof value.initialCapital === "number" &&
+    isStrategyInputArray(value.prices)
   ) {
-    throw new AnalyticsError(
-      "invalid_request",
-      "Config must contain a valid strategy configuration.",
-    );
+    return {
+      input: value.prices,
+      config: {
+        symbol: value.symbol,
+        strategy: mapLegacyStrategy(value.strategy),
+        initialCapital: value.initialCapital,
+      },
+    };
   }
 
-  return {
-    input: value.input,
-    config:
-      value.config,
-  };
+  throw new AnalyticsError(
+    "invalid_request",
+    "Expected timestamped price observations and a valid backtest configuration.",
+  );
 }
 
-export async function POST(
-  request: Request,
-): Promise<Response> {
+function getAnalyticsStatus(error: AnalyticsError): number {
+  switch (error.code) {
+    case "invalid_request":
+    case "invalid_parameter":
+    case "invalid_price":
+      return 400;
+
+    case "insufficient_data":
+      return 422;
+
+    default:
+      return 500;
+  }
+}
+
+export async function POST(request: Request): Promise<Response> {
   try {
-    const body: unknown =
-      await request.json();
+    let body: unknown;
 
-    const validated =
-      validateRequestBody(body);
-
-    const result =
-      runBacktest(
-        validated.input,
-        validated.config,
-      );
-
-    return NextResponse.json(
-      {
-        success: true,
-        result,
-      },
-      {
-        status: 200,
-      },
-    );
-  } catch (error) {
-    if (
-      error instanceof AnalyticsError
-    ) {
-      const status =
-        error.code ===
-        "invalid_request"
-          ? 400
-          : error.code ===
-              "invalid_parameter"
-            ? 400
-            : error.code ===
-                "invalid_price"
-              ? 400
-              : error.code ===
-                  "insufficient_data"
-                ? 422
-                : 500;
+    try {
+      body = await request.json();
+    } catch {
+      const message = "Request body must be valid JSON.";
 
       return NextResponse.json(
         {
           success: false,
           error: {
-            code: error.code,
-            message:
-              error.message,
+            code: "invalid_request",
+            message,
           },
+          message,
+          code: "invalid_request",
         },
-        {
-          status,
-        },
+        { status: 400 },
       );
     }
+
+    const validated = validateRequestBody(body);
+    const result = runBacktest(validated.input, validated.config);
+
+    return NextResponse.json({
+      success: true,
+      result: {
+        ...result,
+        initialCapital: result.summary.initialCapital,
+        finalCapital: result.summary.finalCapital,
+        totalReturn: result.summary.totalReturn,
+        maxDrawdown: result.summary.maxDrawdown,
+        tradeCount: result.summary.tradeCount,
+      },
+    });
+  } catch (error) {
+    if (error instanceof AnalyticsError) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: {
+            code: error.code,
+            message: error.message,
+          },
+          message: error.message,
+          code: error.code,
+        },
+        { status: getAnalyticsStatus(error) },
+      );
+    }
+
+    const message =
+      error instanceof Error
+        ? error.message
+        : "Unable to execute backtest.";
 
     return NextResponse.json(
       {
         success: false,
         error: {
           code: "backtest_error",
-          message:
-            "Unable to execute backtest.",
+          message,
         },
+        message,
+        code: "backtest_error",
       },
-      {
-        status: 500,
-      },
+      { status: 500 },
     );
   }
 }
